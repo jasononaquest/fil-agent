@@ -271,26 +271,29 @@ MCP tools come from the MCP server, not this project. To add new tools:
 
 ### Deploy Workflow
 ```bash
-# 1. Ensure .env has production config (Vertex AI + Cloud Run MCP URL)
-# 2. Copy .env into the package directory (REQUIRED)
+cd /home/fil/falls_into_love_agent
+source .venv/bin/activate
+
+# 1. Copy .env into the package directory (REQUIRED - ADK bundles from package dir)
 cp .env falls_cms_agent/.env
 
-# 3. Deploy
+# 2. Deploy (use --agent_engine_id to UPDATE existing, omit to create new)
 adk deploy agent_engine \
   --project=fil-mcp \
   --region=us-west1 \
   --staging_bucket=gs://run-sources-fil-mcp-us-west1 \
   --display_name="Falls CMS Agent" \
   --trace_to_cloud \
+  --agent_engine_id=970684049372741632 \
   falls_cms_agent
 
-# 4. Test the deployed agent
+# 3. Test the deployed agent
 python test_deployed_agent.py "List all pages"
 ```
 
 ### Current Deployment
-- **Resource ID**: `304151304521908224`
-- **Full Resource Name**: `projects/256129779474/locations/us-west1/reasoningEngines/304151304521908224`
+- **Resource ID**: `970684049372741632`
+- **Full Resource Name**: `projects/256129779474/locations/us-west1/reasoningEngines/970684049372741632`
 - **Region**: us-west1
 - **Project**: fil-mcp
 
