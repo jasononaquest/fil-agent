@@ -17,8 +17,12 @@ class Config:
     GOOGLE_CLOUD_PROJECT: str | None = os.getenv("GOOGLE_CLOUD_PROJECT")
     GOOGLE_CLOUD_LOCATION: str | None = os.getenv("GOOGLE_CLOUD_LOCATION", "us-west1")
 
-    # MCP Server
-    MCP_SERVER_URL: str = os.getenv("MCP_SERVER_URL", "http://localhost:8000/sse")
+    # MCP Server - production Cloud Run URL
+    # For local dev, override via MCP_SERVER_URL env var or .env file
+    MCP_SERVER_URL: str = os.getenv(
+        "MCP_SERVER_URL",
+        "https://falls-mcp-server-256129779474.us-west1.run.app/sse"
+    )
     MCP_API_KEY: str | None = os.getenv("MCP_API_KEY")
 
     # Model configuration

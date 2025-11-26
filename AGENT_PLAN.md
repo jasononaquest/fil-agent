@@ -479,10 +479,32 @@ MCP_API_KEY=                                  # Optional: API key for MCP server
 - [x] Create CLAUDE.md and workflow guidelines
 - [x] Document API and usage (README.md)
 
-### Phase 3.7: Deployment Preparation 🚧
-- [ ] Test with Vertex AI configuration
-- [ ] Document Cloud Run deployment steps
+### Phase 3.7: Deployment to Agent Engine ✅
+- [x] Test with Vertex AI configuration locally
+- [x] Deploy to Vertex AI Agent Engine
+- [x] Verify end-to-end: Agent Engine → Cloud Run MCP → Rails API
 - [ ] Create deployment scripts/Terraform (future)
+
+**Deployed Agent**:
+- **Resource**: `projects/256129779474/locations/us-west1/reasoningEngines/3916038205673046016`
+- **Display Name**: Falls CMS Agent
+- **Region**: us-west1
+- **GCP Project**: fil-mcp
+
+**Deployment Command**:
+```bash
+cd /home/fil/falls_into_love_agent
+source .venv/bin/activate
+adk deploy agent_engine \
+  --project=fil-mcp \
+  --region=us-west1 \
+  --staging_bucket=gs://run-sources-fil-mcp-us-west1 \
+  --display_name="Falls CMS Agent" \
+  --trace_to_cloud \
+  falls_cms_agent
+```
+
+**Key Learning**: Agent Engine doesn't load .env files at runtime. The `config.py` must have production defaults hardcoded, with local development overriding via .env.
 
 ---
 
