@@ -264,3 +264,54 @@ MCP tools come from the MCP server, not this project. To add new tools:
 2. Restart the MCP server
 3. Update `prompts/cms.py` to document the new tool
 4. Update agent instructions to use the new tool
+
+## Deployment to Agent Engine
+
+### Deploy Workflow
+```bash
+# 1. Ensure .env has production config (Vertex AI + Cloud Run MCP URL)
+# 2. Copy .env into the package directory (REQUIRED)
+cp .env falls_cms_agent/.env
+
+# 3. Deploy
+adk deploy agent_engine \
+  --project=fil-mcp \
+  --region=us-west1 \
+  --staging_bucket=gs://run-sources-fil-mcp-us-west1 \
+  --display_name="Falls CMS Agent" \
+  --trace_to_cloud \
+  falls_cms_agent
+
+# 4. Test the deployed agent
+python test_deployed_agent.py "List all pages"
+```
+
+### Current Deployment
+- **Resource ID**: `304151304521908224`
+- **Full Resource Name**: `projects/256129779474/locations/us-west1/reasoningEngines/304151304521908224`
+- **Region**: us-west1
+- **Project**: fil-mcp
+
+### Key Points
+- `.env` must be copied into `falls_cms_agent/` before deployment (ADK bundles from package dir)
+- `config.py` searches multiple locations for `.env` for compatibility
+- Both `.env` files are gitignored for security
+- OpenTelemetry enabled via `GOOGLE_CLOUD_AGENT_ENGINE_ENABLE_TELEMETRY=true`
+
+### Testing Deployed Agent
+```bash
+# CLI test script
+python test_deployed_agent.py "List all pages"
+python test_deployed_agent.py "Create a page for Snoqualmie Falls"
+
+# View traces in Cloud Console
+# https://console.cloud.google.com/traces/list?project=fil-mcp
+```
+
+### Delete Old Deployments
+```bash
+# Via REST API (force=true to delete sessions)
+curl -X DELETE \
+  "https://us-west1-aiplatform.googleapis.com/v1beta1/projects/256129779474/locations/us-west1/reasoningEngines/{ID}?force=true" \
+  -H "Authorization: Bearer $(gcloud auth print-access-token)"
+```
