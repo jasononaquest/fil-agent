@@ -84,53 +84,63 @@ This means `google_search` cannot coexist with MCP tools in the same agent. Work
 
 ### Workflow Pipelines
 
-**Pipeline 1: Create Waterfall Page**
+**Pipeline 1: Create Waterfall Page** (Implemented)
 ```
-SequentialAgent: CreateWaterfallPipeline
+SequentialAgent: create_waterfall_pipeline
   │
-  ├── Step 1: CMS Agent
-  │   └── Check if page exists (list_pages with search)
-  │   └── output_key: "existing_page_check"
+  ├── Step 0: get_template_blocks
+  │   └── Fetch Template 4 block names from CMS
+  │   └── output_key: "template_info"
   │
-  ├── Step 2: Research Agent
+  ├── Step 1: check_existing
+  │   └── Search for duplicate pages
+  │   └── Extract parent page from user request
+  │   └── Outputs: DUPLICATE_FOUND or NO_DUPLICATE + PARENT_PAGE line
+  │   └── output_key: "duplicate_check"
+  │
+  ├── Step 2: research_agent
   │   └── Search web for waterfall facts (GPS, trail info, etc.)
+  │   └── Validate waterfall exists (outputs RESEARCH_FAILED if not)
   │   └── output_key: "research_results"
   │
-  ├── Step 3: Content Agent
-  │   └── Read {research_results}, apply voice/tone
-  │   └── Generate block content (hero, description, details)
+  ├── Step 3: content_agent
+  │   └── Read research from conversation history
+  │   └── Apply GenX woman voice/tone
+  │   └── Generate Template 4 blocks as JSON
   │   └── output_key: "crafted_content"
   │
-  └── Step 4: CMS Agent
-      └── Create page with {crafted_content}
+  └── Step 4: create_in_cms
+      └── Check for stop signals (DUPLICATE_FOUND, RESEARCH_FAILED)
+      └── Create page with parent_id from PARENT_PAGE line
       └── output_key: "created_page"
 ```
 
-**Pipeline 2: Update Existing Page**
+**Pipeline Stop Signals:**
+- `DUPLICATE_FOUND` → Pipeline stops, user asked to confirm
+- `RESEARCH_FAILED` → Pipeline stops, waterfall couldn't be verified
+- `PIPELINE_STOP` → Propagated through remaining agents
+
+**Pipeline 2: Update Existing Page** (Not Yet Implemented)
 ```
-SequentialAgent: UpdatePagePipeline
-  │
-  ├── Step 1: CMS Agent
-  │   └── Get current page details (get_page)
-  │   └── output_key: "current_page"
-  │
-  ├── Step 2: Content Agent
-  │   └── Read {current_page}, apply requested changes
-  │   └── Generate updated block content
-  │   └── output_key: "updated_content"
-  │
-  └── Step 3: CMS Agent
-      └── Update page with {updated_content}
-      └── output_key: "updated_page"
+Currently handled by direct CMS agent calls.
+The coordinator routes update requests to cms_agent which:
+  1. Searches for page by name (never asks user for ID)
+  2. Updates the page with requested changes
+  3. Supports batch updates (multiple pages at once)
 ```
 
-**Pipeline 3: Simple Query**
+**Pipeline 3: Simple Query** (Implemented)
 ```
 Direct CMS Agent call for:
   • "List all pages in Oregon"
   • "Show me the Multnomah Falls page"
   • "What templates are available?"
 ```
+
+**Note on State Management:**
+Originally planned to use `{variable}` injection, but ADK's state management
+proved unreliable. Current implementation uses **conversation history** instead -
+each agent reads previous agents' output from the conversation context.
 
 ### Agent Definitions
 
@@ -350,37 +360,42 @@ falls_into_love_agent/
 ├── .env                    # Environment variables (gitignored)
 ├── .env.example            # Template for env vars
 ├── .gitignore
-├── .tool-versions          # asdf: python 3.12
-├── pyproject.toml          # Project config + dependencies
+├── pyproject.toml          # Project config + dependencies + ruff config
 ├── README.md
+├── CLAUDE.md               # Claude Code guidance
 ├── AGENT_PLAN.md           # This document
+│
+├── Project/
+│   └── workflow-guidelines.md  # Development workflow docs
 │
 ├── falls_cms_agent/        # Main agent package
 │   ├── __init__.py         # Exports agent module
-│   ├── agent.py            # root_agent definition
+│   ├── agent.py            # root_agent (coordinator) definition
+│   ├── config.py           # Configuration and env loading
 │   ├── agents/
 │   │   ├── __init__.py
 │   │   ├── research.py     # Research agent (google_search)
 │   │   ├── content.py      # Content crafting agent
-│   │   ├── cms.py          # CMS operations agent (MCP)
-│   │   └── coordinator.py  # Main coordinator
+│   │   └── cms.py          # CMS operations agent (MCP)
 │   ├── pipelines/
 │   │   ├── __init__.py
-│   │   ├── create_page.py  # SequentialAgent for page creation
-│   │   └── update_page.py  # SequentialAgent for page updates
-│   ├── prompts/
-│   │   ├── __init__.py
-│   │   ├── research.py     # Research agent instructions
-│   │   ├── content.py      # Content agent instructions (voice/tone)
-│   │   └── cms.py          # CMS agent instructions
-│   └── config.py           # Configuration and env loading
+│   │   └── create_page.py  # 5-step SequentialAgent for page creation
+│   └── prompts/
+│       ├── __init__.py
+│       ├── research.py     # Research agent instructions + validation
+│       ├── content.py      # Content agent instructions (voice/tone)
+│       └── cms.py          # CMS agent instructions + batch ops
 │
 └── tests/
     ├── __init__.py
     ├── conftest.py         # Pytest fixtures
-    ├── test_agents.py      # Unit tests for individual agents
-    ├── test_pipelines.py   # Integration tests for workflows
-    └── test_mcp.py         # MCP connection tests
+    ├── test_agents.py      # Unit tests (16 tests)
+    ├── test_evaluations.py # ADK evaluation tests
+    └── fixtures/           # ADK .test.json files
+        ├── duplicate_detection.test.json
+        ├── fake_waterfall_rejection.test.json
+        ├── parent_page_assignment.test.json
+        └── content_blocks.test.json
 ```
 
 ---
@@ -418,45 +433,53 @@ MCP_API_KEY=                                  # Optional: API key for MCP server
 
 ## Implementation Phases
 
-### Phase 3.1: Project Setup
-- [ ] Create Python project with pyproject.toml
-- [ ] Set up virtual environment (Python 3.12)
-- [ ] Install google-adk and dependencies
-- [ ] Create project structure
-- [ ] Configure .env for local development
+### Phase 3.1: Project Setup ✅
+- [x] Create Python project with pyproject.toml
+- [x] Set up virtual environment (Python 3.12)
+- [x] Install google-adk and dependencies
+- [x] Create project structure
+- [x] Configure .env for local development
 
-### Phase 3.2: CMS Agent (MCP Integration)
-- [ ] Implement CMS agent with MCP toolset
-- [ ] Test connection to local MCP server
-- [ ] Test connection to Cloud Run MCP server
-- [ ] Verify all CMS operations work
+### Phase 3.2: CMS Agent (MCP Integration) ✅
+- [x] Implement CMS agent with MCP toolset
+- [x] Test connection to local MCP server
+- [x] Test connection to Cloud Run MCP server
+- [x] Verify all CMS operations work
+- [x] Add batch update support (search all pages first, then update)
 
-### Phase 3.3: Research Agent
-- [ ] Implement Research agent with google_search
-- [ ] Test web search capabilities
-- [ ] Tune prompts for waterfall research
-- [ ] Verify output format for downstream agents
+### Phase 3.3: Research Agent ✅
+- [x] Implement Research agent with google_search
+- [x] Test web search capabilities
+- [x] Tune prompts for waterfall research
+- [x] Verify output format for downstream agents
+- [x] Add validation guardrail (reject fictional waterfalls)
 
-### Phase 3.4: Content Agent
-- [ ] Implement Content agent
-- [ ] Define voice/tone in prompts
-- [ ] Test content transformation
-- [ ] Verify JSON output format
+### Phase 3.4: Content Agent ✅
+- [x] Implement Content agent
+- [x] Define voice/tone in prompts (GenX woman persona)
+- [x] Test content transformation
+- [x] Verify JSON output format
+- [x] Update to use Template 4 block names (cjBlockHero, cjBlockIntroduction, etc.)
 
-### Phase 3.5: Pipelines & Coordinator
-- [ ] Implement CreateWaterfallPipeline (SequentialAgent)
-- [ ] Implement UpdatePagePipeline
-- [ ] Implement Coordinator agent
-- [ ] Test end-to-end workflows
+### Phase 3.5: Pipelines & Coordinator ✅
+- [x] Implement CreateWaterfallPipeline (5-step SequentialAgent)
+- [x] Add template block discovery step (get_template_blocks)
+- [x] Add parent page handling (PARENT_PAGE: line in check_existing)
+- [x] Add pipeline stop signals (DUPLICATE_FOUND, RESEARCH_FAILED, PIPELINE_STOP)
+- [x] Implement Coordinator agent (root_agent in agent.py)
+- [x] Test end-to-end workflows
+- [ ] Implement UpdatePagePipeline (deferred - direct CMS agent works for now)
 
-### Phase 3.6: Testing & Refinement
-- [ ] Write unit tests for agents
-- [ ] Write integration tests for pipelines
-- [ ] Test with `adk web` UI
-- [ ] Refine prompts based on results
-- [ ] Document API and usage
+### Phase 3.6: Testing & Refinement ✅
+- [x] Write unit tests for agents (16 tests in test_agents.py)
+- [x] Write ADK evaluation tests (test_evaluations.py with .test.json fixtures)
+- [x] Test with `adk web` UI
+- [x] Refine prompts based on results
+- [x] Add ruff linter and formatter
+- [x] Create CLAUDE.md and workflow guidelines
+- [x] Document API and usage (README.md)
 
-### Phase 3.7: Deployment Preparation
+### Phase 3.7: Deployment Preparation 🚧
 - [ ] Test with Vertex AI configuration
 - [ ] Document Cloud Run deployment steps
 - [ ] Create deployment scripts/Terraform (future)
@@ -491,16 +514,29 @@ MCP_API_KEY=                                  # Optional: API key for MCP server
 cd /home/fil/falls_into_love_agent
 python -m venv .venv
 source .venv/bin/activate
-pip install google-adk
+pip install -e ".[dev]"
 
 # Local Development
-adk web                          # Start dev UI at localhost:8000
+adk web --port 8001              # Start dev UI (8001 to avoid MCP conflict)
 adk run falls_cms_agent          # Run in terminal mode
 adk api_server                   # Start API server for testing
 
+# Code Quality
+ruff check .                     # Lint
+ruff check --fix .               # Lint + auto-fix
+ruff format .                    # Format code
+
 # Testing
-pytest tests/                    # Run all tests
-pytest tests/test_agents.py -v   # Verbose agent tests
+pytest tests/test_agents.py -v   # Unit tests (fast, no LLM)
+pytest tests/ -v                 # All tests including ADK evaluations
+
+# Pre-commit (all must pass)
+ruff check . && ruff format --check . && pytest tests/test_agents.py -v
+
+# Local Full-Stack Testing
+# Terminal 1: Rails (localhost:3000)
+# Terminal 2: MCP Server (localhost:8000)
+# Terminal 3: ADK Agent (localhost:8001)
 
 # Deployment (future)
 adk deploy cloud_run \
@@ -548,15 +584,58 @@ Example tone: "Yes, you'll be sharing the trail with approximately 47,000 other 
 - Rationale: Corrections are trivial via conversation ("Actually, rename that to Northern Oregon")
 - Keeps workflow moving without interruptions
 
+### State Management (Revised)
+- **Original plan**: Use `{variable}` templating to inject state into prompts
+- **Actual implementation**: Use **conversation history** instead
+- Rationale: ADK's state injection proved unreliable with `KeyError` issues
+- Each agent reads previous agents' output from conversation context
+- More robust and easier to debug
+
+### Pipeline Guardrails
+- **Duplicate detection**: Pipeline stops early if page already exists
+- **Research validation**: Requires 2+ credible sources to verify waterfall exists
+- **Stop signals**: DUPLICATE_FOUND, RESEARCH_FAILED, PIPELINE_STOP propagate through pipeline
+- Rationale: Prevents wasted effort and hallucinated content for fictional waterfalls
+
+### Template Block Discovery
+- **Added Step 0**: get_template_blocks fetches available blocks before content creation
+- Rationale: Ensures content agent creates blocks that match the actual template
+- Fixed bug where content used wrong block names (Template 2 vs Template 4)
+
+### Batch Update Support
+- CMS agent always looks up page IDs before updating
+- Never asks user for IDs - searches by title
+- For multiple pages: searches ALL first, then performs updates
+- Rationale: Better UX, agents shouldn't require users to know internal IDs
+
 ---
 
 ## Success Criteria
 
-- [ ] Say "Create a page for Multnomah Falls in Oregon" → working draft page created
-- [ ] Agent performs web research and includes accurate trail data
-- [ ] Content matches desired voice/tone
-- [ ] All steps visible in `adk web` UI
-- [ ] Can update existing pages via natural language
-- [ ] Can handle "Add X, Y, and Z to Oregon" multi-page requests
-- [ ] Local development works without Vertex AI account
+### Core Functionality ✅
+- [x] Say "Create a page for Toketee Falls in the Waterfalls category" → working draft page created
+- [x] Agent performs web research and includes accurate trail data
+- [x] Content matches desired voice/tone (GenX woman persona)
+- [x] All steps visible in `adk web` UI
+- [x] Can update existing pages via natural language
+- [x] Can handle batch updates ("Move Watson Falls and Toketee Falls under Highway 138")
+- [x] Local development works without Vertex AI account
+
+### Guardrails ✅
+- [x] Duplicate detection stops pipeline and asks user
+- [x] Fake waterfall detection prevents hallucinated content
+- [x] Parent page correctly assigned from user request
+
+### Quality & Testing ✅
+- [x] Unit tests pass (16 tests)
+- [x] ADK evaluation fixtures created
+- [x] Ruff linter configured and passing
+- [x] Pre-commit checklist documented
+
+### Pending
 - [ ] Deployable to Cloud Run/Vertex AI without code changes
+- [ ] Create multiple pages in one request ("Add X, Y, and Z to Oregon")
+
+### Known Limitations
+- Cannot filter pages by parent_id (API enhancement documented in MCP project)
+- UpdatePagePipeline not implemented (direct CMS agent works for now)
