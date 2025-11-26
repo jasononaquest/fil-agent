@@ -18,7 +18,7 @@ Coordinator Agent
     └── CMS Agent (MCP tools)
 ```
 
-See [AGENT_PLAN.md](AGENT_PLAN.md) for detailed architecture documentation.
+The multi-agent pipeline orchestrates research, content creation, and CMS operations.
 
 ## Setup
 
@@ -79,11 +79,18 @@ source .venv/bin/activate
 python server.py
 ```
 
-**Production**: Uses Cloud Run deployment at `https://falls-mcp-server-*.run.app/sse`
+**Production**: Set `MCP_SERVER_URL` to your Cloud Run deployment.
 
 ## Deployment
 
-See [AGENT_PLAN.md](AGENT_PLAN.md) for Cloud Run and Vertex AI deployment instructions.
+Deploy to Vertex AI Agent Engine:
+```bash
+adk deploy agent_engine \
+  --project=YOUR_PROJECT \
+  --region=us-west1 \
+  --staging_bucket=gs://YOUR_BUCKET \
+  falls_cms_agent
+```
 
 
 Local Testing (Full Stack)

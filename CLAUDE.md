@@ -28,7 +28,7 @@ This is a Google ADK (Agent Development Kit) agent that powers conversational co
 - **Falls Into Love (Rails)**: The main CMS at `/home/fil/falls_into_love/`
 - **Falls MCP Server**: The MCP server at `/home/fil/falls_into_love_mcp/`
 
-**For detailed architecture, see**: [AGENT_PLAN.md](AGENT_PLAN.md)
+**For detailed architecture, see**: The agent plan documentation in the main Rails project.
 
 ## Development Commands
 
@@ -109,7 +109,7 @@ falls_into_love_agent/
 │   └── test_evaluations.py       # ADK evaluation tests
 ├── .env                          # Environment variables (not committed)
 ├── .env.example                  # Environment template
-├── AGENT_PLAN.md                 # Detailed architecture documentation
+├── CLAUDE.md                     # Claude Code guidance
 └── pyproject.toml                # Project configuration
 ```
 

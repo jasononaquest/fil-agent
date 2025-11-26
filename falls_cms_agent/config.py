@@ -17,12 +17,8 @@ class Config:
     GOOGLE_CLOUD_PROJECT: str | None = os.getenv("GOOGLE_CLOUD_PROJECT")
     GOOGLE_CLOUD_LOCATION: str | None = os.getenv("GOOGLE_CLOUD_LOCATION", "us-west1")
 
-    # MCP Server - production Cloud Run URL
-    # For local dev, override via MCP_SERVER_URL env var or .env file
-    MCP_SERVER_URL: str = os.getenv(
-        "MCP_SERVER_URL",
-        "https://falls-mcp-server-256129779474.us-west1.run.app/sse"
-    )
+    # MCP Server - must be set via environment variable
+    MCP_SERVER_URL: str | None = os.getenv("MCP_SERVER_URL")
     MCP_API_KEY: str | None = os.getenv("MCP_API_KEY")
 
     # Model configuration
@@ -38,6 +34,8 @@ class Config:
     @classmethod
     def validate(cls) -> None:
         """Validate required configuration is present."""
+        if not cls.MCP_SERVER_URL:
+            raise ValueError("MCP_SERVER_URL environment variable is required")
         if not cls.USE_VERTEX_AI and not cls.GOOGLE_API_KEY:
             raise ValueError("GOOGLE_API_KEY is required when GOOGLE_GENAI_USE_VERTEXAI is FALSE")
         if cls.USE_VERTEX_AI and not cls.GOOGLE_CLOUD_PROJECT:
