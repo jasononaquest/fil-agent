@@ -1,0 +1,35 @@
+{
+  "eval_set_id": "duplicate_detection",
+  "name": "Duplicate Detection Test",
+  "description": "Verify pipeline stops when creating a page that already exists",
+  "eval_cases": [
+    {
+      "eval_id": "detect_existing_page",
+      "conversation": [
+        {
+          "invocation_id": "test-001",
+          "user_content": {
+            "parts": [{"text": "Create a page for Toketee Falls in the Waterfalls category"}],
+            "role": "user"
+          },
+          "intermediate_data": {
+            "tool_uses": [
+              {"name": "list_templates", "args": {}},
+              {"name": "list_pages", "args": {"search": "Toketee"}}
+            ],
+            "intermediate_responses": []
+          },
+          "final_response": {
+            "parts": [{"text": "DUPLICATE_FOUND"}],
+            "role": "model"
+          }
+        }
+      ],
+      "session_input": {
+        "app_name": "falls_cms_agent",
+        "user_id": "test_user",
+        "state": {}
+      }
+    }
+  ]
+}
