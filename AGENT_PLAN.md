@@ -465,6 +465,20 @@ MCP_API_KEY=                                  # Optional: API key for MCP server
 
 ## Future Considerations
 
+### API/MCP Enhancements
+
+**Filter pages by parent_id** (Priority: Medium)
+- Current limitation: `list_pages` only supports title search, not filtering by parent
+- User request: "What pages are under Highway 138?" cannot be answered
+- Proposed changes:
+  1. Rails API: Add `parent_id` query parameter to `GET /api/v1/pages`
+  2. MCP Server: Update `list_pages` tool to accept `parent_id` filter
+  3. Agent: Update CMS agent instructions to use new filter
+
+**Get page children** (Alternative approach)
+- Add `children` array to page response in `get_page`
+- Or add new `list_children(page_id)` tool
+
 ### Terraform for IaC
 - Cloud Run service configuration
 - Vertex AI Agent Engine setup
