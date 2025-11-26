@@ -84,3 +84,30 @@ python server.py
 ## Deployment
 
 See [AGENT_PLAN.md](AGENT_PLAN.md) for Cloud Run and Vertex AI deployment instructions.
+
+
+Local Testing (Full Stack)
+
+Terminal 1 - Rails API:
+cd /home/fil/falls_into_love
+bin/dev
+# Runs on localhost:3000
+
+Terminal 2 - MCP Server (SSE mode):
+cd /home/fil/falls_into_love_mcp
+source .venv/bin/activate
+
+# Point to local Rails and run in SSE mode
+RAILS_API_URL=http://localhost:3000/api/v1 \
+RAILS_API_TOKEN=your-local-api-token \
+MCP_TRANSPORT=sse \
+PORT=8000 \
+python server.py
+
+Terminal 3 - ADK Agent:
+cd /home/fil/falls_into_love_agent
+source .venv/bin/activate
+adk web
+
+Update ADK's .env for local:
+MCP_SERVER_URL=http://localhost:8000/sse
