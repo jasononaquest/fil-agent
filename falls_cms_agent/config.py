@@ -1,11 +1,28 @@
 """Configuration and environment loading for the agent."""
 
 import os
+from pathlib import Path
 
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
-load_dotenv()
+# Try multiple locations for Agent Engine deployment compatibility
+_package_dir = Path(__file__).parent
+_possible_env_locations = [
+    _package_dir / ".env",  # Inside package (if copied there)
+    _package_dir.parent / ".env",  # Project root / staging root (/code/.env)
+    Path.cwd() / ".env",  # Current working directory
+]
+
+_env_loaded = False
+for _env_file in _possible_env_locations:
+    if _env_file.exists():
+        load_dotenv(_env_file)
+        _env_loaded = True
+        break
+
+if not _env_loaded:
+    load_dotenv()  # Fallback to default dotenv behavior
 
 
 class Config:

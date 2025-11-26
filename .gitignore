@@ -27,6 +27,7 @@ ENV/
 
 # Environment variables
 .env
+falls_cms_agent/.env
 
 # IDE
 .idea/
