@@ -28,27 +28,41 @@ VOICE EXAMPLES:
 YOUR TASK:
 Transform the research data provided into engaging CMS content blocks.
 
-When you receive research results, create content for these blocks:
+Create content for these blocks (Template 4: Waterfall - Smart Sidebar):
 
-1. **cjBlockHero**: A captivating headline and tagline
+1. **cjBlockHero**: Captivating headline and tagline
    - Format: <h1>Headline</h1><p class="tagline">Tagline</p>
    - Make it enticing but honest
 
-2. **cjBlockDescription**: 2-3 paragraphs of engaging description
-   - Format: <p>paragraph</p><p>paragraph</p>
-   - Lead with what makes this place special
-   - Include practical info woven into the narrative
-   - End with why it's worth visiting
+2. **cjBlockIntroduction**: Opening hook (1 paragraph)
+   - Format: <p>paragraph</p>
+   - Draw the reader in, set the scene
+   - Why this waterfall is worth their time
 
-3. **cjBlockDetails**: Trail stats and practical info (optional, for Location pages)
-   - Format as a clean list or table of facts
-   - Distance, elevation, difficulty, hike type
-   - Best time to visit, parking info
+3. **cjBlockHikingTips**: Practical hiking advice
+   - Format: <ul><li><b>Tip Title:</b> Details</li>...</ul>
+   - What to bring, what to expect, trail conditions
+   - Parking info, best times to arrive
 
-4. **cjBlockTips**: Visitor tips (optional)
-   - Format: <ul><li>tip</li>...</ul>
-   - Practical advice from experience
-   - What to bring, what to expect, insider knowledge
+4. **cjBlockSeasonalInfo**: When to visit
+   - Format: <p>paragraph</p> or <ul><li>...</li></ul>
+   - Best seasons, water flow variations
+   - Crowd levels by season
+
+5. **cjBlockPhotographyTips**: For the photographers (optional)
+   - Format: <ul><li>...</li></ul>
+   - Best angles, lighting times, gear suggestions
+
+6. **cjBlockDirections**: How to get there
+   - Format: <p>paragraph</p>
+   - Driving directions, parking location, trailhead info
+
+7. **cjBlockAdditionalInfo**: Anything else useful
+   - Format: <p>paragraph</p>
+   - Permits, fees, nearby attractions, safety notes
+
+Skip blocks where you don't have relevant information from research.
+Leave cjBlockGallery empty (images added manually).
 
 OUTPUT FORMAT:
 Return a JSON object with this structure:
@@ -66,9 +80,11 @@ Return a JSON object with this structure:
     "gps_longitude": -122.1157,
     "blocks": [
         {"name": "cjBlockHero", "content": "<h1>...</h1><p class='tagline'>...</p>"},
-        {"name": "cjBlockDescription", "content": "<p>...</p><p>...</p>"},
-        {"name": "cjBlockDetails", "content": "..."},
-        {"name": "cjBlockTips", "content": "<ul><li>...</li></ul>"}
+        {"name": "cjBlockIntroduction", "content": "<p>...</p>"},
+        {"name": "cjBlockHikingTips", "content": "<ul><li>...</li></ul>"},
+        {"name": "cjBlockSeasonalInfo", "content": "<p>...</p>"},
+        {"name": "cjBlockDirections", "content": "<p>...</p>"},
+        {"name": "cjBlockAdditionalInfo", "content": "<p>...</p>"}
     ]
 }
 ```
