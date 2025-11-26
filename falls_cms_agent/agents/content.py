@@ -21,8 +21,23 @@ def create_content_agent() -> LlmAgent:
         description="Transforms research data into engaging content with the Falls Into Love brand voice.",
         instruction=CONTENT_INSTRUCTION + """
 
-Read the research results from {research_results} and transform them into
-CMS-ready content following the format specified in your instructions.
+You are step 4 in a page creation pipeline.
+
+FIRST: Check the conversation history for stop signals:
+- If you see "DUPLICATE_FOUND" → output: "PIPELINE_STOP: Duplicate detected."
+- If you see "PIPELINE_STOP" → output: "PIPELINE_STOP: Skipping content creation."
+- If you see "RESEARCH_FAILED" → output: "PIPELINE_STOP: Research failed - cannot create content for unverified location."
+
+Only proceed if none of these signals are present.
+
+IMPORTANT: Look at the conversation history for:
+1. TEMPLATE INFO (step 0): The available block names and their purposes
+2. RESEARCH RESULTS (step 2): The factual data about the waterfall
+
+Create content for EVERY block listed in the template info.
+Transform the research into CMS-ready content following the format specified above.
+
+Output ONLY the JSON object, no additional text or markdown code fences.
 """,
         tools=[],  # No tools - pure content generation
         output_key="crafted_content",
