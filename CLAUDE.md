@@ -1,0 +1,258 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code when working with code in this repository.
+
+## Working Approach
+
+**Act as an experienced senior engineer:**
+- Make sound engineering decisions independently for implementation details
+- Don't ask permission for routine technical choices (function names, file organization, standard patterns)
+- DO ask questions for architectural decisions, business logic, or ambiguous requirements
+- Anticipate edge cases and handle them proactively
+- Write production-quality code with proper error handling
+- Apply Python best practices without prompting
+- Take ownership - if you see a problem, fix it
+
+## Project Overview
+
+This is a Google ADK (Agent Development Kit) agent that powers conversational content creation for the Falls Into Love CMS. It enables natural language requests like "Create a page for Multnomah Falls in Oregon" and handles research, content crafting, and CMS operations.
+
+**Key Architecture:**
+- **Multi-agent system**: Coordinator routes to specialized agents
+- **Research Agent**: Uses `google_search` to gather waterfall/trail facts
+- **Content Agent**: Transforms research into engaging content with GenX woman voice
+- **CMS Agent**: Manages pages via MCP connection to Rails API
+- **Pipeline**: SequentialAgent orchestrates the page creation workflow
+
+**Relationship to Other Projects:**
+- **Falls Into Love (Rails)**: The main CMS at `/home/fil/falls_into_love/`
+- **Falls MCP Server**: The MCP server at `/home/fil/falls_into_love_mcp/`
+
+**For detailed architecture, see**: [AGENT_PLAN.md](AGENT_PLAN.md)
+
+## Development Commands
+
+### Setup
+```bash
+cd /home/fil/falls_into_love_agent
+python -m venv .venv
+source .venv/bin/activate
+pip install -e ".[dev]"
+cp .env.example .env              # Add your API keys
+```
+
+### Testing
+```bash
+pytest tests/test_agents.py -v    # Unit tests (fast, no LLM calls)
+pytest tests/ -v                  # All tests
+```
+
+### Running the Agent
+```bash
+# Development UI (recommended)
+adk web --port 8001
+
+# Terminal mode
+adk run falls_cms_agent
+
+# API server (for integration testing)
+adk api_server
+```
+
+### Local Full-Stack Testing
+```bash
+# Terminal 1 - Rails API
+cd /home/fil/falls_into_love && bin/dev
+
+# Terminal 2 - MCP Server (SSE mode)
+cd /home/fil/falls_into_love_mcp
+source .venv/bin/activate
+RAILS_API_URL=http://localhost:3000/api/v1 \
+RAILS_API_TOKEN=your-token \
+MCP_TRANSPORT=sse PORT=8000 python server.py
+
+# Terminal 3 - ADK Agent
+cd /home/fil/falls_into_love_agent
+source .venv/bin/activate
+adk web --port 8001
+```
+
+### Code Quality
+```bash
+pytest tests/test_agents.py -v    # Must pass before commits
+# Consider adding ruff in the future
+```
+
+## Project Structure
+
+```
+falls_into_love_agent/
+├── falls_cms_agent/              # Main agent package
+│   ├── __init__.py
+│   ├── agent.py                  # root_agent (coordinator)
+│   ├── config.py                 # Environment configuration
+│   ├── agents/
+│   │   ├── cms.py                # CMS agent (MCP tools)
+│   │   ├── content.py            # Content agent (voice/tone)
+│   │   └── research.py           # Research agent (google_search)
+│   ├── pipelines/
+│   │   └── create_page.py        # SequentialAgent for page creation
+│   └── prompts/
+│       ├── cms.py                # CMS agent instructions
+│       ├── content.py            # Content agent instructions (voice)
+│       └── research.py           # Research agent instructions
+├── tests/
+│   ├── fixtures/                 # ADK .test.json files
+│   ├── test_agents.py            # Unit tests
+│   └── test_evaluations.py       # ADK evaluation tests
+├── .env                          # Environment variables (not committed)
+├── .env.example                  # Environment template
+├── AGENT_PLAN.md                 # Detailed architecture documentation
+└── pyproject.toml                # Project configuration
+```
+
+## Agent Architecture
+
+### Pipeline: Create Waterfall Page
+
+```
+SequentialAgent: create_waterfall_pipeline
+  │
+  ├── Step 0: get_template_blocks
+  │   └── Fetch available content blocks from Template 4
+  │
+  ├── Step 1: check_existing
+  │   └── Check for duplicates, extract parent page info
+  │   └── Outputs: DUPLICATE_FOUND or NO_DUPLICATE + PARENT_PAGE
+  │
+  ├── Step 2: research_agent
+  │   └── Web search for waterfall facts (GPS, trail info)
+  │   └── Validates waterfall exists (RESEARCH_FAILED if not)
+  │
+  ├── Step 3: content_agent
+  │   └── Transform research into engaging content
+  │   └── Apply GenX woman voice/tone
+  │
+  └── Step 4: create_in_cms
+      └── Create page in CMS with parent_id
+```
+
+### Pipeline Stop Signals
+
+Agents check for and propagate stop signals:
+- `DUPLICATE_FOUND` → Pipeline stops, user asked to confirm
+- `RESEARCH_FAILED` → Pipeline stops, user informed waterfall can't be verified
+- `PIPELINE_STOP` → Propagated through remaining agents
+
+## Content Voice
+
+The content agent writes as a **GenX woman who loves waterfalls**:
+- Personal & Informative - like talking to a friend
+- Sarcastic undertone - doesn't take herself too seriously
+- Genuine admiration for nature
+- Practical - includes info hikers actually need
+
+**Example tone:**
+> "Yes, you'll be sharing the trail with approximately 47,000 other people on a summer weekend. But trust me, when you round that corner and see 620 feet of cascading water, you'll forget every single one of them."
+
+## Git Workflow
+
+### Commit Message Format
+
+Use conventional commit style: `type: description`
+
+**Types:**
+- `feat:` - New feature (new agent, new capability)
+- `fix:` - Bug fix
+- `refactor:` - Code refactoring
+- `test:` - Adding or updating tests
+- `docs:` - Documentation changes
+- `chore:` - Maintenance tasks
+
+**Examples:**
+- `feat: add pipeline guardrails for duplicates and fake waterfalls`
+- `fix: update content blocks to match Template 4`
+- `test: add ADK evaluation tests for parent page assignment`
+
+### Pre-Commit Checklist
+
+Before every commit:
+1. Run `pytest tests/test_agents.py -v` - all tests must pass
+2. Verify agent imports work: `python -c "from falls_cms_agent.agent import root_agent"`
+3. Check prompts for correctness (block names, stop signals, etc.)
+
+**NEVER commit if:**
+- Any tests are failing
+- Agent fails to import
+- Feature is incomplete or non-functional
+
+### When to Commit
+
+Proactively suggest commits when:
+- A new agent or pipeline step is added and tested
+- Prompt improvements are made and tested
+- Bug fixes are verified
+- Tests are added or updated
+
+## Environment Variables
+
+Required in `.env`:
+```bash
+# Google AI (for local development)
+GOOGLE_GENAI_USE_VERTEXAI=FALSE
+GOOGLE_API_KEY=your-google-ai-key
+
+# MCP Server Connection
+MCP_SERVER_URL=http://localhost:8000/sse
+MCP_API_KEY=                              # Optional
+
+# For production (Vertex AI)
+# GOOGLE_GENAI_USE_VERTEXAI=TRUE
+# GOOGLE_CLOUD_PROJECT=your-project
+# GOOGLE_CLOUD_LOCATION=us-west1
+```
+
+## Testing Strategy
+
+### Unit Tests (`test_agents.py`)
+- Agent imports and configuration
+- Prompt content verification (voice, block names, guardrails)
+- Pipeline structure validation
+- **No LLM calls** - fast, safe to run frequently
+
+### ADK Evaluation Tests (`test_evaluations.py`)
+- Use ADK's AgentEvaluator framework
+- Test files in `.test.json` format
+- Verify tool trajectories and response patterns
+- **Requires LLM calls** - slower, use for CI/CD
+
+### Test Fixtures (`tests/fixtures/`)
+- `duplicate_detection.test.json` - Verify pipeline stops on duplicates
+- `fake_waterfall_rejection.test.json` - Verify research validation
+- `parent_page_assignment.test.json` - Verify correct parent handling
+- `content_blocks.test.json` - Verify Template 4 block names
+
+## Adding New Features
+
+### Adding a New Pipeline Step
+
+1. Create the agent in `agents/` or inline in `pipelines/`
+2. Add instructions to `prompts/` if complex
+3. Add to the SequentialAgent's `sub_agents` list
+4. Update tests in `test_agents.py`
+5. Add evaluation fixture if needed
+
+### Modifying Prompts
+
+1. Update the prompt in `prompts/`
+2. Run unit tests to verify structure: `pytest tests/test_agents.py -v`
+3. Test manually with `adk web --port 8001`
+4. Add/update evaluation fixtures if behavior changed
+
+### Adding MCP Tools
+
+MCP tools come from the MCP server, not this project. To add new tools:
+1. Add the tool to `/home/fil/falls_into_love_mcp/`
+2. Restart the MCP server
+3. Update `prompts/cms.py` to document the new tool
+4. Update agent instructions to use the new tool
