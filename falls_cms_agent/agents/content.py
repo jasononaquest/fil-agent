@@ -19,7 +19,8 @@ def create_content_agent() -> LlmAgent:
         name="content_agent",
         model=Config.DEFAULT_MODEL,
         description="Transforms research data into engaging content with the Falls Into Love brand voice.",
-        instruction=CONTENT_INSTRUCTION + """
+        instruction=CONTENT_INSTRUCTION
+        + """
 
 You are step 4 in a page creation pipeline.
 

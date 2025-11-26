@@ -1,6 +1,7 @@
 """Configuration and environment loading for the agent."""
 
 import os
+
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
@@ -34,9 +35,7 @@ class Config:
     def validate(cls) -> None:
         """Validate required configuration is present."""
         if not cls.USE_VERTEX_AI and not cls.GOOGLE_API_KEY:
-            raise ValueError(
-                "GOOGLE_API_KEY is required when GOOGLE_GENAI_USE_VERTEXAI is FALSE"
-            )
+            raise ValueError("GOOGLE_API_KEY is required when GOOGLE_GENAI_USE_VERTEXAI is FALSE")
         if cls.USE_VERTEX_AI and not cls.GOOGLE_CLOUD_PROJECT:
             raise ValueError(
                 "GOOGLE_CLOUD_PROJECT is required when GOOGLE_GENAI_USE_VERTEXAI is TRUE"

@@ -6,12 +6,14 @@ matches expected tool trajectories and responses.
 Run with: pytest tests/test_evaluations.py -v
 """
 
-import pytest
 from pathlib import Path
+
+import pytest
 
 # Note: These imports will work once google-adk is installed
 try:
     from google.adk.evaluation.agent_evaluator import AgentEvaluator
+
     ADK_AVAILABLE = True
 except ImportError:
     ADK_AVAILABLE = False

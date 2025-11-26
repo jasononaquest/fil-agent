@@ -2,11 +2,10 @@
 
 from google.adk.agents import LlmAgent, SequentialAgent
 
-from ..config import Config
 from ..agents.cms import cms_agent
-from ..agents.research import research_agent
 from ..agents.content import content_agent
-
+from ..agents.research import research_agent
+from ..config import Config
 
 # Step 0: Get template block names (so we know what content to create)
 get_template_blocks_agent = LlmAgent(

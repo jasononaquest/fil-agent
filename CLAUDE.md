@@ -79,8 +79,10 @@ adk web --port 8001
 
 ### Code Quality
 ```bash
-pytest tests/test_agents.py -v    # Must pass before commits
-# Consider adding ruff in the future
+ruff check .                      # Lint
+ruff check --fix .                # Lint + auto-fix
+ruff format .                     # Format code
+pytest tests/test_agents.py -v    # Unit tests
 ```
 
 ## Project Structure
@@ -177,13 +179,19 @@ Use conventional commit style: `type: description`
 ### Pre-Commit Checklist
 
 Before every commit:
-1. Run `pytest tests/test_agents.py -v` - all tests must pass
-2. Verify agent imports work: `python -c "from falls_cms_agent.agent import root_agent"`
-3. Check prompts for correctness (block names, stop signals, etc.)
+1. Run `ruff check .` - no lint errors
+2. Run `ruff format --check .` - code is formatted
+3. Run `pytest tests/test_agents.py -v` - all tests must pass
+
+Quick one-liner:
+```bash
+ruff check . && ruff format --check . && pytest tests/test_agents.py -v
+```
 
 **NEVER commit if:**
+- Ruff reports unfixable lint errors
+- Code is not formatted
 - Any tests are failing
-- Agent fails to import
 - Feature is incomplete or non-functional
 
 ### When to Commit

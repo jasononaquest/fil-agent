@@ -7,10 +7,9 @@ The agent can be run with: adk web or adk run falls_cms_agent
 from google.adk.agents import LlmAgent
 from google.adk.tools import AgentTool
 
-from .config import Config
 from .agents.cms import cms_agent
+from .config import Config
 from .pipelines.create_page import create_waterfall_pipeline
-
 
 # Coordinator instruction - the main orchestrator
 COORDINATOR_INSTRUCTION = """You are the content assistant for Falls Into Love, a waterfall

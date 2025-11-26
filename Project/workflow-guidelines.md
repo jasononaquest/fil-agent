@@ -8,15 +8,18 @@
 
 ```bash
 # Required - all must pass
+ruff check .                      # Lint check
+ruff format --check .             # Format check
 pytest tests/test_agents.py -v    # Unit tests
 
-# Verify imports work
-python -c "from falls_cms_agent.agent import root_agent; print('✓ Imports OK')"
+# Quick one-liner
+ruff check . && ruff format --check . && pytest tests/test_agents.py -v
 ```
 
 **NEVER commit if:**
+- Ruff reports unfixable lint errors
+- Code is not formatted
 - Any tests are failing
-- Agent fails to import
 - Feature is incomplete or non-functional
 
 ### Before Major Releases
