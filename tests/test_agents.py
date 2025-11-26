@@ -124,11 +124,11 @@ class TestPrompts:
 class TestPipeline:
     """Test pipeline structure."""
 
-    def test_pipeline_has_five_agents(self):
-        """Pipeline should have 5 sub-agents."""
+    def test_pipeline_has_four_agents(self):
+        """Pipeline should have 4 sub-agents."""
         from falls_cms_agent.pipelines.create_page import create_waterfall_pipeline
 
-        assert len(create_waterfall_pipeline.sub_agents) == 5
+        assert len(create_waterfall_pipeline.sub_agents) == 4
 
     def test_pipeline_agent_order(self):
         """Pipeline agents should be in correct order."""
@@ -136,7 +136,6 @@ class TestPipeline:
 
         agent_names = [a.name for a in create_waterfall_pipeline.sub_agents]
         expected = [
-            "get_template_blocks",
             "check_existing",
             "research_agent",
             "content_agent",

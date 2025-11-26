@@ -7,41 +7,12 @@ from ..agents.content import content_agent
 from ..agents.research import research_agent
 from ..config import Config
 
-# Step 0: Get template block names (so we know what content to create)
-get_template_blocks_agent = LlmAgent(
-    name="get_template_blocks",
-    model=Config.DEFAULT_MODEL,
-    description="Fetches available content blocks from the page template.",
-    instruction="""You are the first step in a page creation pipeline.
-Your job is to find out what content blocks are available for Location pages.
-
-Use the list_templates tool to get all templates.
-Find the template used for Location/waterfall pages (usually ID 4 or named "Location").
-
-Report the available block names like this:
-"TEMPLATE BLOCKS: [block1, block2, block3]"
-
-For each block, infer its purpose from the name:
-- cjBlockHero → Hero section (main headline and tagline)
-- cjBlockDescription → Main description/body content
-- cjBlockDetails → Trail stats and practical details
-- cjBlockTips → Visitor tips and advice
-- cjBlockGallery → Photo gallery
-- etc.
-
-Include this mapping so the content writer knows what to create.
-""",
-    tools=[cms_agent.tools[0]],  # Share the MCP toolset
-    output_key="template_info",
-)
-
-
 # Step 1: Check for existing pages (using CMS agent)
 check_existing_agent = LlmAgent(
     name="check_existing",
     model=Config.DEFAULT_MODEL,
     description="Checks if a page already exists in the CMS.",
-    instruction="""You are step 2 in a page creation pipeline.
+    instruction="""You are step 1 in a page creation pipeline.
 Your job is to check if a page for the requested waterfall already exists.
 
 Look at the user's request to identify the waterfall name they want to create.
@@ -84,7 +55,7 @@ create_in_cms_agent = LlmAgent(
     name="create_in_cms",
     model=Config.DEFAULT_MODEL,
     description="Creates the page in the CMS using the crafted content.",
-    instruction="""You are step 5 (final) in the page creation pipeline.
+    instruction="""You are step 4 (final) in the page creation pipeline.
 
 FIRST: Check the conversation history for stop signals:
 - If you see "DUPLICATE_FOUND" → output: "PIPELINE_STOPPED: Duplicate page exists. No page created."
@@ -124,7 +95,6 @@ def create_waterfall_pipeline() -> SequentialAgent:
     """Create the full waterfall page creation pipeline.
 
     Pipeline steps:
-    0. get_template_blocks: Fetch template to know what content blocks to create
     1. check_existing: Search CMS for duplicates, extract waterfall name & parent
     2. research_agent: Web search for facts (GPS, trail info, etc.)
     3. content_agent: Transform research into engaging content with brand voice
@@ -132,17 +102,18 @@ def create_waterfall_pipeline() -> SequentialAgent:
 
     Data flows via conversation history - each agent reads the previous agent's output.
     State keys set via output_key:
-    - template_info (step 0)
     - duplicate_check (step 1)
     - research_results (step 2)
     - crafted_content (step 3)
     - created_page (step 4)
+
+    Note: Template block names are hard-coded in content agent prompt (Template 4 blocks).
+    Dynamic template discovery was removed as unnecessary overhead.
     """
     return SequentialAgent(
         name="create_waterfall_pipeline",
         description="Full pipeline to research, write, and create a waterfall page.",
         sub_agents=[
-            get_template_blocks_agent,
             check_existing_agent,
             research_agent,
             content_agent,

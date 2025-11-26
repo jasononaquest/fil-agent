@@ -2,6 +2,7 @@
 """Test script for the deployed Agent Engine agent."""
 
 import json
+
 from google.cloud import aiplatform
 from google.cloud.aiplatform_v1beta1 import ReasoningEngineExecutionServiceClient
 from vertexai.preview import reasoning_engines

@@ -14,7 +14,6 @@
           },
           "intermediate_data": {
             "tool_uses": [
-              {"name": "list_templates", "args": {}},
               {"name": "list_pages", "args": {"search": "Silver"}},
               {"name": "list_pages", "args": {"search": "Waterfalls"}},
               {"name": "google_search", "args": {"query": "Silver Falls Oregon"}},

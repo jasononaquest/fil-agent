@@ -22,7 +22,7 @@ def create_content_agent() -> LlmAgent:
         instruction=CONTENT_INSTRUCTION
         + """
 
-You are step 4 in a page creation pipeline.
+You are step 3 in a page creation pipeline.
 
 FIRST: Check the conversation history for stop signals:
 - If you see "DUPLICATE_FOUND" → output: "PIPELINE_STOP: Duplicate detected."
@@ -31,12 +31,11 @@ FIRST: Check the conversation history for stop signals:
 
 Only proceed if none of these signals are present.
 
-IMPORTANT: Look at the conversation history for:
-1. TEMPLATE INFO (step 0): The available block names and their purposes
-2. RESEARCH RESULTS (step 2): The factual data about the waterfall
+Look at the conversation history for the RESEARCH RESULTS (step 2) containing
+the factual data about the waterfall.
 
-Create content for EVERY block listed in the template info.
 Transform the research into CMS-ready content following the format specified above.
+Create content for all the Template 4 blocks listed in your instructions.
 
 Output ONLY the JSON object, no additional text or markdown code fences.
 """,

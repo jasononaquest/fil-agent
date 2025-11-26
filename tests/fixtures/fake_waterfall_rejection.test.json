@@ -14,7 +14,6 @@
           },
           "intermediate_data": {
             "tool_uses": [
-              {"name": "list_templates", "args": {}},
               {"name": "list_pages", "args": {"search": "Madeup"}},
               {"name": "google_search", "args": {"query": "Madeup Falls waterfall"}}
             ],

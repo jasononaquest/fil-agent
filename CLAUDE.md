@@ -120,9 +120,6 @@ falls_into_love_agent/
 ```
 SequentialAgent: create_waterfall_pipeline
   │
-  ├── Step 0: get_template_blocks
-  │   └── Fetch available content blocks from Template 4
-  │
   ├── Step 1: check_existing
   │   └── Check for duplicates, extract parent page info
   │   └── Outputs: DUPLICATE_FOUND or NO_DUPLICATE + PARENT_PAGE
@@ -134,10 +131,15 @@ SequentialAgent: create_waterfall_pipeline
   ├── Step 3: content_agent
   │   └── Transform research into engaging content
   │   └── Apply GenX woman voice/tone
+  │   └── Uses hard-coded Template 4 block names
   │
   └── Step 4: create_in_cms
       └── Create page in CMS with parent_id
 ```
+
+Note: Template block names (cjBlockHero, cjBlockIntroduction, etc.) are hard-coded
+in the content agent prompt. Dynamic template discovery was removed as unnecessary
+overhead since all waterfall pages use Template 4.
 
 ### Pipeline Stop Signals
 
