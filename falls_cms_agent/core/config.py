@@ -77,7 +77,7 @@ class Config:
         """Get headers for Rails internal API calls."""
         headers = {"Content-Type": "application/json"}
         if cls.INTERNAL_API_TOKEN:
-            headers["X-Internal-Token"] = cls.INTERNAL_API_TOKEN
+            headers["Authorization"] = f"Bearer {cls.INTERNAL_API_TOKEN}"
         return headers
 
     @classmethod

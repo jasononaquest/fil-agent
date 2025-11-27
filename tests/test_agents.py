@@ -220,7 +220,7 @@ class TestPipelineTools:
 
         assert "waterfall_name" in params
         assert "parent_name" in params
-        assert "session_id" in params
+        assert "user_id" in params
 
     def test_management_tools_exist(self):
         """All management pipeline tools should exist."""

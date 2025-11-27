@@ -49,14 +49,14 @@ async def check_for_duplicate(waterfall_name: str, mcp_tools: Any) -> dict | Non
 async def find_or_create_parent(
     parent_name: str | None,
     mcp_tools: Any,
-    session_id: str | None,
+    user_id: int | str | None,
 ) -> int | None:
     """Find existing parent page or create a new category page.
 
     Args:
         parent_name: Name of the parent/category (e.g., "Oregon")
         mcp_tools: MCP toolset instance
-        session_id: Session ID for event streaming
+        user_id: Rails user ID for event streaming
 
     Returns:
         Parent page ID, or None if no parent specified
@@ -76,7 +76,7 @@ async def find_or_create_parent(
                     return page["id"]
 
         # Parent not found - create it
-        emit_status_sync(session_id, f"Creating category page '{parent_name}'...")
+        emit_status_sync(user_id, f"Creating category page '{parent_name}'...")
         draft = CategoryPageDraft(title=parent_name)
 
         create_result = await mcp_tools.call_tool(
@@ -96,7 +96,7 @@ async def find_or_create_parent(
 async def create_waterfall_page(
     waterfall_name: str,
     parent_name: str | None = None,
-    session_id: str | None = None,
+    user_id: int | str | None = None,
 ) -> str:
     """Research and create a new waterfall page with engaging content.
 
@@ -109,7 +109,7 @@ async def create_waterfall_page(
     Args:
         waterfall_name: Name of the waterfall to create a page for (e.g., "Multnomah Falls")
         parent_name: Optional parent/category name (e.g., "Oregon")
-        session_id: Optional session ID for real-time event streaming (internal use)
+        user_id: Optional Rails user ID for real-time event streaming to UI
 
     Returns:
         Status message describing what was created or why it stopped
@@ -118,18 +118,18 @@ async def create_waterfall_page(
     mcp_tools = get_mcp_toolset()
 
     # Step 1: Check for duplicates
-    emit_status_sync(session_id, "Checking for existing pages...", "step_start")
+    emit_status_sync(user_id, "Checking for existing pages...", "step_start")
 
     duplicate = await check_for_duplicate(waterfall_name, mcp_tools)
     if duplicate:
         msg = f"DUPLICATE_FOUND: '{duplicate['title']}' already exists (ID: {duplicate['id']})"
-        emit_status_sync(session_id, msg, "pipeline_stopped")
+        emit_status_sync(user_id, msg, "pipeline_stopped")
         return msg
 
-    emit_status_sync(session_id, "No duplicate found", "step_complete")
+    emit_status_sync(user_id, "No duplicate found", "step_complete")
 
     # Step 2: Research the waterfall
-    emit_status_sync(session_id, f"Researching {waterfall_name}...", "step_start")
+    emit_status_sync(user_id, f"Researching {waterfall_name}...", "step_start")
 
     try:
         research_result = await research_agent.run_async(
@@ -147,19 +147,19 @@ async def create_waterfall_page(
 
         if not research.verified:
             msg = f"RESEARCH_FAILED: Could not verify '{waterfall_name}' exists. {research.verification_notes or ''}"
-            emit_status_sync(session_id, msg, "pipeline_stopped")
+            emit_status_sync(user_id, msg, "pipeline_stopped")
             return msg
 
-        emit_status_sync(session_id, "Research complete", "step_complete")
+        emit_status_sync(user_id, "Research complete", "step_complete")
 
     except Exception as e:
         logger.error(f"Research failed: {e}")
         msg = f"RESEARCH_FAILED: Error researching {waterfall_name}: {e}"
-        emit_status_sync(session_id, msg, "pipeline_error")
+        emit_status_sync(user_id, msg, "pipeline_error")
         return msg
 
     # Step 3: Generate content with brand voice
-    emit_status_sync(session_id, "Writing engaging content...", "step_start")
+    emit_status_sync(user_id, "Writing engaging content...", "step_start")
 
     try:
         content_result = await content_agent.run_async(
@@ -175,20 +175,20 @@ async def create_waterfall_page(
         else:
             draft = WaterfallPageDraft.model_validate(content_result)
 
-        emit_status_sync(session_id, "Content ready", "step_complete")
+        emit_status_sync(user_id, "Content ready", "step_complete")
 
     except Exception as e:
         logger.error(f"Content generation failed: {e}")
         msg = f"CONTENT_FAILED: Error generating content: {e}"
-        emit_status_sync(session_id, msg, "pipeline_error")
+        emit_status_sync(user_id, msg, "pipeline_error")
         return msg
 
     # Step 4: Create the page in CMS
-    emit_status_sync(session_id, "Creating page in CMS...", "step_start")
+    emit_status_sync(user_id, "Creating page in CMS...", "step_start")
 
     try:
         # Find or create parent page
-        parent_id = await find_or_create_parent(parent_name, mcp_tools, session_id)
+        parent_id = await find_or_create_parent(parent_name, mcp_tools, user_id)
 
         # Convert draft to API format
         page_data = draft.to_api_dict(parent_id=parent_id)
@@ -207,14 +207,14 @@ async def create_waterfall_page(
             f"Included {block_count} content blocks."
         )
 
-        emit_status_sync(session_id, msg, "pipeline_complete")
+        emit_status_sync(user_id, msg, "pipeline_complete")
         logger.info(msg)
         return msg
 
     except Exception as e:
         logger.error(f"CMS creation failed: {e}")
         msg = f"CMS_ERROR: Failed to create page: {e}"
-        emit_status_sync(session_id, msg, "pipeline_error")
+        emit_status_sync(user_id, msg, "pipeline_error")
         return msg
 
 
