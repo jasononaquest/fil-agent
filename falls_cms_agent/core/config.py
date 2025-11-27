@@ -60,11 +60,14 @@ class Config:
                 from google.oauth2 import id_token
 
                 # Fetch ID token for the MCP server URL
+                # The audience must match the Cloud Run service URL
                 token = id_token.fetch_id_token(Request(), cls.MCP_SERVER_URL)
                 return {"Authorization": f"Bearer {token}"}
-            except Exception:
-                # Fall back to API key if OIDC fails
-                pass
+            except Exception as e:
+                # Log the error and fall back to API key
+                import logging
+
+                logging.getLogger(__name__).warning(f"OIDC token fetch failed: {e}")
 
         # Local development: Use API key
         if cls.MCP_API_KEY:
