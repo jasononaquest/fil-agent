@@ -38,22 +38,42 @@ class TestAgentImports:
         assert content_agent is not None
         assert content_agent.name == "content_agent"
 
-    def test_import_pipeline(self):
-        """Create waterfall pipeline should be importable."""
-        from falls_cms_agent.pipelines.create_page import create_waterfall_pipeline
+    def test_import_router_agent(self):
+        """Router agent should be importable."""
+        from falls_cms_agent.agents.router import router_agent
 
-        assert create_waterfall_pipeline is not None
-        assert create_waterfall_pipeline.name == "create_waterfall_pipeline"
+        assert router_agent is not None
+        assert router_agent.name == "intent_router"
+
+    def test_import_pipeline_tool(self):
+        """Create waterfall pipeline tool should be importable."""
+        from falls_cms_agent.pipelines.create_page import create_pipeline_tool
+
+        assert create_pipeline_tool is not None
+        assert create_pipeline_tool.func.__name__ == "create_waterfall_page"
 
 
 class TestAgentConfiguration:
     """Test agent configuration values."""
 
     def test_root_agent_has_tools(self):
-        """Root agent should have tools configured."""
+        """Root agent should have 9 pipeline tools configured."""
         from falls_cms_agent.agent import root_agent
 
-        assert len(root_agent.tools) > 0
+        assert len(root_agent.tools) == 9
+        tool_names = [t.func.__name__ for t in root_agent.tools]
+        expected = [
+            "create_waterfall_page",
+            "move_page",
+            "delete_page",
+            "publish_page",
+            "unpublish_page",
+            "update_page_content",
+            "search_pages",
+            "list_pages",
+            "get_page_details",
+        ]
+        assert set(tool_names) == set(expected)
 
     def test_cms_agent_has_mcp_tools(self):
         """CMS agent should have MCP toolset."""
@@ -73,72 +93,179 @@ class TestAgentConfiguration:
 
         assert len(content_agent.tools) == 0
 
+    def test_router_agent_has_output_schema(self):
+        """Router agent should have UserIntent output schema."""
+        from falls_cms_agent.agents.router import router_agent
+
+        assert router_agent.output_schema is not None
+
 
 class TestPrompts:
-    """Test prompt content and structure."""
+    """Test prompt content and structure using YAML loader."""
 
     def test_content_prompt_has_voice(self):
         """Content prompt should define the GenX voice."""
-        from falls_cms_agent.prompts.content import CONTENT_INSTRUCTION
+        from falls_cms_agent.core.prompts import load_prompt
 
-        assert "GenX" in CONTENT_INSTRUCTION
-        assert (
-            "sarcastic" in CONTENT_INSTRUCTION.lower() or "sarcasm" in CONTENT_INSTRUCTION.lower()
-        )
+        instruction = load_prompt("content")
+
+        assert "GenX" in instruction
+        assert "sarcastic" in instruction.lower() or "sarcasm" in instruction.lower()
 
     def test_content_prompt_has_template4_blocks(self):
         """Content prompt should reference Template 4 block names."""
-        from falls_cms_agent.prompts.content import CONTENT_INSTRUCTION
+        from falls_cms_agent.core.prompts import load_prompt
 
-        assert "cjBlockHero" in CONTENT_INSTRUCTION
-        assert "cjBlockIntroduction" in CONTENT_INSTRUCTION
-        assert "cjBlockHikingTips" in CONTENT_INSTRUCTION
-        # Verify old block names are NOT present
-        assert "cjBlockDescription" not in CONTENT_INSTRUCTION
-        assert "cjBlockDetails" not in CONTENT_INSTRUCTION
+        instruction = load_prompt("content")
+
+        assert "cjBlockHero" in instruction
+        assert "cjBlockIntroduction" in instruction
+        assert "cjBlockHikingTips" in instruction
 
     def test_research_prompt_has_validation(self):
         """Research prompt should have validation for fake waterfalls."""
-        from falls_cms_agent.prompts.research import RESEARCH_INSTRUCTION
+        from falls_cms_agent.core.prompts import load_prompt
 
-        assert "RESEARCH_FAILED" in RESEARCH_INSTRUCTION
-        assert (
-            "verify" in RESEARCH_INSTRUCTION.lower() or "validate" in RESEARCH_INSTRUCTION.lower()
+        instruction = load_prompt("research")
+
+        assert "RESEARCH_FAILED" in instruction or "verified" in instruction.lower()
+
+    def test_router_prompt_has_intent_classification(self):
+        """Router prompt should define intent classification."""
+        from falls_cms_agent.core.prompts import load_prompt
+
+        instruction = load_prompt("router")
+
+        assert "CREATE_PAGE" in instruction or "intent" in instruction.lower()
+
+    def test_voice_prompt_exists(self):
+        """Voice prompt YAML should exist."""
+        from falls_cms_agent.core.prompts import load_prompt
+
+        instruction = load_prompt("voice")
+
+        assert len(instruction) > 0
+        assert "GenX" in instruction or "woman" in instruction.lower()
+
+
+class TestSchemas:
+    """Test Pydantic schemas."""
+
+    def test_user_intent_schema(self):
+        """UserIntent schema should be valid."""
+        from common.schemas import IntentAction, UserIntent
+
+        intent = UserIntent(
+            reasoning="User wants to create a page for Multnomah Falls",
+            action=IntentAction.CREATE_PAGE,
+            target_page_name="Multnomah Falls",
+            destination_parent_name="Oregon",
         )
 
-    def test_research_prompt_has_duplicate_check(self):
-        """Research prompt should check for DUPLICATE_FOUND."""
-        from falls_cms_agent.prompts.research import RESEARCH_INSTRUCTION
+        assert intent.action == IntentAction.CREATE_PAGE
+        assert intent.target_page_name == "Multnomah Falls"
 
-        assert "DUPLICATE_FOUND" in RESEARCH_INSTRUCTION
-        assert "PIPELINE_STOP" in RESEARCH_INSTRUCTION
+    def test_waterfall_page_draft_schema(self):
+        """WaterfallPageDraft should convert to API dict."""
+        from common.schemas import ContentBlock, Difficulty, HikeType, WaterfallPageDraft
 
-    def test_cms_prompt_has_batch_operations(self):
-        """CMS prompt should handle batch updates."""
-        from falls_cms_agent.prompts.cms import CMS_INSTRUCTION
+        draft = WaterfallPageDraft(
+            title="Test Falls",
+            meta_title="Test Falls | Falls Into Love",
+            meta_description="A beautiful waterfall",
+            difficulty=Difficulty.MODERATE,
+            hike_type=HikeType.OUT_AND_BACK,
+            blocks=[
+                ContentBlock(name="cjBlockHero", content="<h1>Test</h1>"),
+            ],
+        )
 
-        assert "batch" in CMS_INSTRUCTION.lower() or "multiple pages" in CMS_INSTRUCTION.lower()
-        assert "search" in CMS_INSTRUCTION.lower()
+        api_dict = draft.to_api_dict(parent_id=42)
+
+        assert api_dict["title"] == "Test Falls"
+        assert api_dict["parent_id"] == 42
+        assert api_dict["difficulty"] == "Moderate"
+        assert len(api_dict["blocks_attributes"]) == 1
+
+    def test_research_result_schema(self):
+        """ResearchResult schema should be valid."""
+        from common.schemas import ResearchResult
+
+        result = ResearchResult(
+            waterfall_name="Multnomah Falls",
+            verified=True,
+            description="A beautiful multi-tiered waterfall in the Columbia River Gorge",
+            sources=["https://example.com/multnomah-falls"],
+            location_state="Oregon",
+            gps_latitude=45.5762,
+            gps_longitude=-122.1158,
+        )
+
+        assert result.verified is True
+        assert result.gps_latitude == 45.5762
+        assert len(result.sources) == 1
 
 
-class TestPipeline:
-    """Test pipeline structure."""
+class TestPipelineTools:
+    """Test pipeline function tools."""
 
-    def test_pipeline_has_four_agents(self):
-        """Pipeline should have 4 sub-agents."""
-        from falls_cms_agent.pipelines.create_page import create_waterfall_pipeline
+    def test_create_pipeline_tool_signature(self):
+        """Create pipeline tool should have correct signature."""
+        import inspect
 
-        assert len(create_waterfall_pipeline.sub_agents) == 4
+        from falls_cms_agent.pipelines.create_page import create_waterfall_page
 
-    def test_pipeline_agent_order(self):
-        """Pipeline agents should be in correct order."""
-        from falls_cms_agent.pipelines.create_page import create_waterfall_pipeline
+        sig = inspect.signature(create_waterfall_page)
+        params = list(sig.parameters.keys())
 
-        agent_names = [a.name for a in create_waterfall_pipeline.sub_agents]
-        expected = [
-            "check_existing",
-            "research_agent",
-            "content_agent",
-            "create_in_cms",
+        assert "waterfall_name" in params
+        assert "parent_name" in params
+        assert "session_id" in params
+
+    def test_management_tools_exist(self):
+        """All management pipeline tools should exist."""
+        from falls_cms_agent.pipelines import (
+            delete_pipeline_tool,
+            get_page_pipeline_tool,
+            list_pipeline_tool,
+            move_pipeline_tool,
+            publish_pipeline_tool,
+            search_pipeline_tool,
+            unpublish_pipeline_tool,
+            update_content_pipeline_tool,
+        )
+
+        tools = [
+            move_pipeline_tool,
+            delete_pipeline_tool,
+            publish_pipeline_tool,
+            unpublish_pipeline_tool,
+            update_content_pipeline_tool,
+            search_pipeline_tool,
+            list_pipeline_tool,
+            get_page_pipeline_tool,
         ]
-        assert agent_names == expected
+
+        assert len(tools) == 8
+        for tool in tools:
+            assert tool.func is not None
+
+
+class TestConfig:
+    """Test configuration loading."""
+
+    def test_config_has_defaults(self):
+        """Config should have default values."""
+        from falls_cms_agent.core.config import Config
+
+        assert Config.DEFAULT_MODEL is not None
+        assert Config.ROUTER_MODEL is not None
+
+    def test_config_mcp_server_url(self):
+        """Config should have MCP server URL method."""
+        from falls_cms_agent.core.config import Config
+
+        # Should not raise, even if env var not set
+        url = Config.MCP_SERVER_URL
+        # Could be None if not configured
+        assert url is None or isinstance(url, str)

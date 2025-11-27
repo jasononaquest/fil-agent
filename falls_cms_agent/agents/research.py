@@ -3,9 +3,11 @@
 from google.adk.agents import LlmAgent
 from google.adk.tools import google_search
 
-from ..callbacks import research_callback
-from ..config import Config
-from ..prompts.research import RESEARCH_INSTRUCTION
+from common.schemas import ResearchResult
+
+from ..core.callbacks import research_callback
+from ..core.config import Config
+from ..core.prompts import load_prompt
 
 
 def create_research_agent() -> LlmAgent:
@@ -22,8 +24,9 @@ def create_research_agent() -> LlmAgent:
         name="research_agent",
         model=Config.DEFAULT_MODEL,
         description="Searches the web for waterfall and hiking trail information using Google Search.",
-        instruction=RESEARCH_INSTRUCTION,
+        instruction=load_prompt("research"),
         tools=[google_search],
+        output_schema=ResearchResult,
         output_key="research_results",
         before_agent_callback=research_callback,
     )

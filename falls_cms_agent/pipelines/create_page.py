@@ -1,129 +1,232 @@
-"""Create Waterfall Page Pipeline - orchestrates the full page creation workflow."""
+"""Create Waterfall Page Pipeline - orchestrates the full page creation workflow.
 
-from google.adk.agents import LlmAgent, SequentialAgent
+This module implements the "Tools-as-Pipelines" pattern where the pipeline
+function is wrapped as an ADK FunctionTool and orchestrates sub-agents.
+"""
 
-from ..agents.cms import cms_agent
+import json
+from typing import Any
+
+from google.adk.tools import FunctionTool
+
+from common.schemas import CategoryPageDraft, ResearchResult, WaterfallPageDraft
+
+from ..agents.cms import get_mcp_toolset
 from ..agents.content import content_agent
 from ..agents.research import research_agent
-from ..callbacks import check_existing_callback, create_in_cms_callback
-from ..config import Config
+from ..core.callbacks import emit_status_sync
+from ..core.logging import get_logger
 
-# Step 1: Check for existing pages (using CMS agent)
-check_existing_agent = LlmAgent(
-    name="check_existing",
-    model=Config.DEFAULT_MODEL,
-    description="Checks if a page already exists in the CMS.",
-    instruction="""You are step 1 in a page creation pipeline.
-Your job is to check if a page for the requested waterfall already exists.
-
-Look at the user's request to identify the waterfall name they want to create.
-Use the list_pages tool with that name as a search term.
-
-If a matching page is found:
-- Report: "DUPLICATE_FOUND: [page title] (ID: [id])"
-- Include the existing page details
-- The pipeline should stop here
-
-If no matching page is found:
-- Report: "NO_DUPLICATE: [waterfall name]"
-
-CRITICAL - PARENT PAGE HANDLING:
-1. Look at the user's ORIGINAL request for any parent/category mention
-   (e.g., "in the Waterfalls category", "under Oregon", etc.)
-2. If a parent was mentioned, search for it using list_pages
-3. Report the parent info in this EXACT format:
-   "PARENT_PAGE: [name] (ID: [id])" if found
-   "PARENT_PAGE: [name] (NOT_FOUND - will be created)" if not found
-   "PARENT_PAGE: none" if user didn't specify one
-
-This PARENT_PAGE line is critical - downstream steps depend on it!
-""",
-    tools=[cms_agent.tools[0]],  # Share the MCP toolset
-    output_key="duplicate_check",
-    before_agent_callback=check_existing_callback,
-)
+logger = get_logger(__name__)
 
 
-# Step 2: Research agent (already defined with google_search)
-# Uses research_agent from agents/research.py
+async def check_for_duplicate(waterfall_name: str, mcp_tools: Any) -> dict | None:
+    """Check if a page with this name already exists.
 
+    Args:
+        waterfall_name: Name of the waterfall to check
+        mcp_tools: MCP toolset instance
 
-# Step 3: Content agent (already defined)
-# Uses content_agent from agents/content.py
-
-
-# Step 4: Create the page in CMS
-create_in_cms_agent = LlmAgent(
-    name="create_in_cms",
-    model=Config.DEFAULT_MODEL,
-    description="Creates the page in the CMS using the crafted content.",
-    instruction="""You are step 4 (final) in the page creation pipeline.
-
-FIRST: Check the conversation history for stop signals:
-- If you see "DUPLICATE_FOUND" → output: "PIPELINE_STOPPED: Duplicate page exists. No page created."
-- If you see "PIPELINE_STOP" → output: "PIPELINE_STOPPED: [repeat the reason from earlier]"
-- If you see "RESEARCH_FAILED" → output: "PIPELINE_STOPPED: Cannot create page - waterfall could not be verified."
-
-Only proceed with page creation if none of these signals are present.
-
-The content_agent produced JSON content. Look in the conversation history for the JSON object containing:
-- title, slug, meta_title, meta_description
-- difficulty, distance, elevation_gain, hike_type
-- gps_latitude, gps_longitude
-- blocks: array of objects with "name" and "content" keys
-
-HANDLING PARENT PAGES - THIS IS CRITICAL:
-Look in the conversation history for the check_existing agent's output.
-Find the line starting with "PARENT_PAGE:" - it will be one of:
-- "PARENT_PAGE: [name] (ID: [id])" → Use that ID as parent_id
-- "PARENT_PAGE: [name] (NOT_FOUND - will be created)" → Create a simple page with that title first, then use its ID
-- "PARENT_PAGE: none" → Don't set a parent_id
-
-You MUST use the parent_id when creating the page if one was specified!
-
-Use the create_page tool with ALL the extracted data including parent_id.
-IMPORTANT: Include ALL blocks from the crafted content - do not skip any blocks!
-
-Report what was created:
-"CREATED: [title] (ID: [id]) as draft under [parent name] (parent_id: [id])" or "under root" if no parent
-"BLOCKS CREATED: [list all block names that were included]"
-""",
-    tools=[cms_agent.tools[0]],  # Share the MCP toolset
-    output_key="created_page",
-    before_agent_callback=create_in_cms_callback,
-)
-
-
-def create_waterfall_pipeline() -> SequentialAgent:
-    """Create the full waterfall page creation pipeline.
-
-    Pipeline steps:
-    1. check_existing: Search CMS for duplicates, extract waterfall name & parent
-    2. research_agent: Web search for facts (GPS, trail info, etc.)
-    3. content_agent: Transform research into engaging content with brand voice
-    4. create_in_cms: Create page in CMS with the crafted content
-
-    Data flows via conversation history - each agent reads the previous agent's output.
-    State keys set via output_key:
-    - duplicate_check (step 1)
-    - research_results (step 2)
-    - crafted_content (step 3)
-    - created_page (step 4)
-
-    Note: Template block names are hard-coded in content agent prompt (Template 4 blocks).
-    Dynamic template discovery was removed as unnecessary overhead.
+    Returns:
+        Page dict if duplicate found, None otherwise
     """
-    return SequentialAgent(
-        name="create_waterfall_pipeline",
-        description="Full pipeline to research, write, and create a waterfall page.",
-        sub_agents=[
-            check_existing_agent,
-            research_agent,
-            content_agent,
-            create_in_cms_agent,
-        ],
-    )
+    # Use the list_pages tool to search
+    try:
+        result = await mcp_tools.call_tool("list_pages", {"search": waterfall_name})
+        pages = json.loads(result) if isinstance(result, str) else result
+
+        if isinstance(pages, list) and len(pages) > 0:
+            # Check for exact or close match
+            for page in pages:
+                if page.get("title", "").lower() == waterfall_name.lower():
+                    return page
+        return None
+    except Exception as e:
+        logger.warning(f"Error checking for duplicates: {e}")
+        return None
 
 
-# Create the pipeline instance
-create_waterfall_pipeline = create_waterfall_pipeline()
+async def find_or_create_parent(
+    parent_name: str | None,
+    mcp_tools: Any,
+    session_id: str | None,
+) -> int | None:
+    """Find existing parent page or create a new category page.
+
+    Args:
+        parent_name: Name of the parent/category (e.g., "Oregon")
+        mcp_tools: MCP toolset instance
+        session_id: Session ID for event streaming
+
+    Returns:
+        Parent page ID, or None if no parent specified
+    """
+    if not parent_name:
+        return None
+
+    # Search for existing parent
+    try:
+        result = await mcp_tools.call_tool("list_pages", {"search": parent_name})
+        pages = json.loads(result) if isinstance(result, str) else result
+
+        if isinstance(pages, list):
+            for page in pages:
+                if page.get("title", "").lower() == parent_name.lower():
+                    logger.info(f"Found existing parent: {page['title']} (ID: {page['id']})")
+                    return page["id"]
+
+        # Parent not found - create it
+        emit_status_sync(session_id, f"Creating category page '{parent_name}'...")
+        draft = CategoryPageDraft(title=parent_name)
+
+        create_result = await mcp_tools.call_tool(
+            "create_category_page",
+            {"draft": draft.model_dump()},
+        )
+        created = json.loads(create_result) if isinstance(create_result, str) else create_result
+        parent_id = created.get("id")
+        logger.info(f"Created parent page: {parent_name} (ID: {parent_id})")
+        return parent_id
+
+    except Exception as e:
+        logger.warning(f"Error finding/creating parent: {e}")
+        return None
+
+
+async def create_waterfall_page(
+    waterfall_name: str,
+    parent_name: str | None = None,
+    session_id: str | None = None,
+) -> str:
+    """Research and create a new waterfall page with engaging content.
+
+    This function orchestrates:
+    1. Duplicate check
+    2. Research via google_search
+    3. Content generation with brand voice
+    4. CMS page creation
+
+    Args:
+        waterfall_name: Name of the waterfall to create a page for (e.g., "Multnomah Falls")
+        parent_name: Optional parent/category name (e.g., "Oregon")
+        session_id: Optional session ID for real-time event streaming (internal use)
+
+    Returns:
+        Status message describing what was created or why it stopped
+    """
+    logger.info(f"Starting create pipeline for: {waterfall_name}")
+    mcp_tools = get_mcp_toolset()
+
+    # Step 1: Check for duplicates
+    emit_status_sync(session_id, "Checking for existing pages...", "step_start")
+
+    duplicate = await check_for_duplicate(waterfall_name, mcp_tools)
+    if duplicate:
+        msg = f"DUPLICATE_FOUND: '{duplicate['title']}' already exists (ID: {duplicate['id']})"
+        emit_status_sync(session_id, msg, "pipeline_stopped")
+        return msg
+
+    emit_status_sync(session_id, "No duplicate found", "step_complete")
+
+    # Step 2: Research the waterfall
+    emit_status_sync(session_id, f"Researching {waterfall_name}...", "step_start")
+
+    try:
+        research_result = await research_agent.run_async(
+            f"Research the waterfall called {waterfall_name}. Find GPS coordinates, "
+            f"trail distance, elevation gain, difficulty, and notable features."
+        )
+
+        # Parse research result
+        if isinstance(research_result, ResearchResult):
+            research = research_result
+        elif isinstance(research_result, str):
+            research = ResearchResult.model_validate_json(research_result)
+        else:
+            research = ResearchResult.model_validate(research_result)
+
+        if not research.verified:
+            msg = f"RESEARCH_FAILED: Could not verify '{waterfall_name}' exists. {research.verification_notes or ''}"
+            emit_status_sync(session_id, msg, "pipeline_stopped")
+            return msg
+
+        emit_status_sync(session_id, "Research complete", "step_complete")
+
+    except Exception as e:
+        logger.error(f"Research failed: {e}")
+        msg = f"RESEARCH_FAILED: Error researching {waterfall_name}: {e}"
+        emit_status_sync(session_id, msg, "pipeline_error")
+        return msg
+
+    # Step 3: Generate content with brand voice
+    emit_status_sync(session_id, "Writing engaging content...", "step_start")
+
+    try:
+        content_result = await content_agent.run_async(
+            f"Create content for {waterfall_name} using this research:\n\n"
+            f"{research.model_dump_json(indent=2)}"
+        )
+
+        # Parse content result
+        if isinstance(content_result, WaterfallPageDraft):
+            draft = content_result
+        elif isinstance(content_result, str):
+            draft = WaterfallPageDraft.model_validate_json(content_result)
+        else:
+            draft = WaterfallPageDraft.model_validate(content_result)
+
+        emit_status_sync(session_id, "Content ready", "step_complete")
+
+    except Exception as e:
+        logger.error(f"Content generation failed: {e}")
+        msg = f"CONTENT_FAILED: Error generating content: {e}"
+        emit_status_sync(session_id, msg, "pipeline_error")
+        return msg
+
+    # Step 4: Create the page in CMS
+    emit_status_sync(session_id, "Creating page in CMS...", "step_start")
+
+    try:
+        # Find or create parent page
+        parent_id = await find_or_create_parent(parent_name, mcp_tools, session_id)
+
+        # Convert draft to API format
+        page_data = draft.to_api_dict(parent_id=parent_id)
+
+        # Create the page
+        create_result = await mcp_tools.call_tool("create_waterfall_page", {"draft": page_data})
+        created = json.loads(create_result) if isinstance(create_result, str) else create_result
+
+        page_id = created.get("id")
+        page_title = created.get("title", draft.title)
+        block_count = len(draft.blocks)
+
+        parent_info = f"under '{parent_name}'" if parent_name else "at root level"
+        msg = (
+            f"SUCCESS: Created '{page_title}' (ID: {page_id}) as draft {parent_info}. "
+            f"Included {block_count} content blocks."
+        )
+
+        emit_status_sync(session_id, msg, "pipeline_complete")
+        logger.info(msg)
+        return msg
+
+    except Exception as e:
+        logger.error(f"CMS creation failed: {e}")
+        msg = f"CMS_ERROR: Failed to create page: {e}"
+        emit_status_sync(session_id, msg, "pipeline_error")
+        return msg
+
+
+# Wrap as ADK FunctionTool for use by root agent
+# Note: FunctionTool extracts name and description from the function itself
+create_pipeline_tool = FunctionTool(func=create_waterfall_page)
+
+
+# Also export the agents used by this pipeline for direct access if needed
+__all__ = [
+    "create_waterfall_page",
+    "create_pipeline_tool",
+    "check_for_duplicate",
+    "find_or_create_parent",
+]
