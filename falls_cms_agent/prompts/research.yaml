@@ -28,7 +28,7 @@ instruction: |
      - Are sources official (AllTrails, Oregon Hikers, NPS, USFS) or reputable blogs?
      - Do search results confirm this is a real place?
 
-  4. SYNTHESIZE your findings into structured data.
+  4. SYNTHESIZE your findings into structured JSON data.
 
   VALIDATION RULES:
   - If you cannot find credible sources, set verified=false
@@ -37,42 +37,41 @@ instruction: |
 
   DATA QUALITY:
   - Only report data you actually found - don't guess
-  - For difficulty: use Easy, Moderate, or Hard (exactly)
-  - For hike_type: use Loop, Out and Back, or Point to Point (exactly)
+  - For difficulty: use "Easy", "Moderate", or "Hard" (exactly)
+  - For hike_type: use "Loop", "Out and Back", or "Point to Point" (exactly)
   - Always include your sources (URLs)
 
-  OUTPUT:
-  Return a structured ResearchResult with all findings.
-  The verified field is critical - downstream agents will abort if verified=false.
+  OUTPUT FORMAT:
+  You MUST respond with valid JSON only - no markdown, no explanations, just the JSON object.
+  Required fields: waterfall_name, verified, description, sources
 
-preferred_sources:
-  - "alltrails.com"
-  - "oregonhikers.org"
-  - "wta.org"  # Washington Trails Association
-  - "nps.gov"  # National Park Service
-  - "fs.usda.gov"  # Forest Service
-  - "stateparks.oregon.gov"
-  - "waterfallsnorthwest.com"
-
-output_format: |
+  Example response:
   {
-    "waterfall_name": "string",
-    "verified": true/false,
+    "waterfall_name": "Multnomah Falls",
+    "verified": true,
     "location_state": "Oregon",
     "location_region": "Columbia River Gorge",
     "gps_latitude": 45.5762,
     "gps_longitude": -122.1157,
     "distance_miles": 2.4,
     "elevation_gain_feet": 700,
-    "difficulty": "Easy|Moderate|Hard",
-    "hike_type": "Loop|Out and Back|Point to Point",
+    "difficulty": "Moderate",
+    "hike_type": "Out and Back",
     "waterfall_height_feet": 620,
-    "description": "2-3 paragraphs of factual information",
-    "notable_features": ["feature1", "feature2"],
-    "best_time_to_visit": "Spring for peak flow",
-    "parking_info": "Large parking lot, $5 day use fee",
-    "fees": "$5 day use fee",
-    "accessibility_notes": "Paved trail to lower viewpoint",
-    "sources": ["url1", "url2"],
-    "verification_notes": "Only if there are concerns"
+    "description": "Multnomah Falls is a stunning 620-foot waterfall located in the Columbia River Gorge. It is the tallest waterfall in Oregon and one of the most visited natural sites in the Pacific Northwest. The falls cascade in two major drops, with the upper falls dropping 542 feet and the lower falls dropping 69 feet.",
+    "notable_features": ["Benson Bridge viewing platform", "Upper viewpoint trail"],
+    "best_time_to_visit": "Spring for peak water flow",
+    "parking_info": "Large parking lot on Historic Columbia River Highway",
+    "fees": "Northwest Forest Pass required",
+    "accessibility_notes": "Paved trail to lower viewpoint is wheelchair accessible",
+    "sources": ["https://www.alltrails.com/trail/us/oregon/multnomah-falls", "https://www.fs.usda.gov/recarea/crgnsa/recarea/?recid=30026"]
   }
+
+preferred_sources:
+  - "alltrails.com"
+  - "oregonhikers.org"
+  - "wta.org"
+  - "nps.gov"
+  - "fs.usda.gov"
+  - "stateparks.oregon.gov"
+  - "waterfallsnorthwest.com"

@@ -1,8 +1,9 @@
-"""Core infrastructure: config, callbacks, logging."""
+"""Core infrastructure: config, callbacks, logging, MCP client."""
 
 from .callbacks import create_step_callback, emit_status
 from .config import Config
 from .logging import get_logger, setup_logging
+from .mcp_client import McpClient, get_mcp_client
 from .prompts import load_prompt
 
 __all__ = [
@@ -12,4 +13,6 @@ __all__ = [
     "setup_logging",
     "get_logger",
     "load_prompt",
+    "McpClient",
+    "get_mcp_client",
 ]

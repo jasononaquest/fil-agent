@@ -74,11 +74,31 @@ instruction: |
   Leave cjBlockGallery empty (images added manually).
 
   OUTPUT FORMAT:
+  You MUST respond with valid JSON only - no markdown, no explanations, just the JSON object.
+
   Return a WaterfallPageDraft object with:
   - title, slug, meta_title, meta_description
   - difficulty, distance, elevation_gain, hike_type (use exact enum values)
   - gps_latitude, gps_longitude
-  - blocks: array of ContentBlock objects
+  - blocks: array of {name, content} objects
+
+  Example structure:
+  {
+    "title": "Multnomah Falls",
+    "slug": "multnomah-falls",
+    "meta_title": "Multnomah Falls - Oregon's Most Iconic Waterfall",
+    "meta_description": "Everything you need to know about visiting Multnomah Falls...",
+    "difficulty": "Moderate",
+    "distance": 2.4,
+    "elevation_gain": 700,
+    "hike_type": "Out and Back",
+    "gps_latitude": 45.5762,
+    "gps_longitude": -122.1157,
+    "blocks": [
+      {"name": "cjBlockHero", "content": "<h1>...</h1><p class=\"tagline\">...</p>"},
+      {"name": "cjBlockIntroduction", "content": "<p>...</p>"}
+    ]
+  }
 
   IMPORTANT:
   - difficulty must be exactly: Easy, Moderate, or Hard

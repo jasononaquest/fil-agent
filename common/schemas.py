@@ -155,6 +155,30 @@ class WaterfallPageDraft(BaseModel):
             data["parent_id"] = parent_id
         return data
 
+    def to_mcp_dict(self, parent_id: int | None = None) -> dict:
+        """Convert to MCP tool format for create_waterfall_page."""
+        data = {
+            "title": self.title,
+            "meta_title": self.meta_title,
+            "meta_description": self.meta_description,
+            "difficulty": self.difficulty.value,
+            "hike_type": self.hike_type.value,
+            "blocks": [{"name": b.name, "content": b.content} for b in self.blocks],
+        }
+        if self.slug:
+            data["slug"] = self.slug
+        if self.distance is not None:
+            data["distance"] = self.distance
+        if self.elevation_gain is not None:
+            data["elevation_gain"] = self.elevation_gain
+        if self.gps_latitude is not None:
+            data["gps_latitude"] = self.gps_latitude
+        if self.gps_longitude is not None:
+            data["gps_longitude"] = self.gps_longitude
+        if parent_id is not None:
+            data["parent_id"] = parent_id
+        return data
+
 
 class CategoryPageDraft(BaseModel):
     """Simple draft for creating a category/parent page."""

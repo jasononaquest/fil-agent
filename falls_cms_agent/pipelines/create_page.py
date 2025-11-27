@@ -2,38 +2,108 @@
 
 This module implements the "Tools-as-Pipelines" pattern where the pipeline
 function is wrapped as an ADK FunctionTool and orchestrates sub-agents.
+
+Note: Due to ADK Runner app_name mismatch bugs (https://github.com/google/adk-python/issues/3133),
+we use google.genai directly for sub-agent calls instead of nested Runners.
 """
 
-import json
-from typing import Any
-
+from google import genai
 from google.adk.tools import FunctionTool
+from google.genai import types
 
-from common.schemas import CategoryPageDraft, ResearchResult, WaterfallPageDraft
+from common.schemas import ResearchResult, WaterfallPageDraft
 
-from ..agents.cms import get_mcp_toolset
-from ..agents.content import content_agent
-from ..agents.research import research_agent
 from ..core.callbacks import emit_status_sync
+from ..core.config import Config
 from ..core.logging import get_logger
+from ..core.mcp_client import get_mcp_client
+from ..core.prompts import load_prompt
 
 logger = get_logger(__name__)
 
+# Initialize genai client
+_client = genai.Client()
 
-async def check_for_duplicate(waterfall_name: str, mcp_tools: Any) -> dict | None:
+
+async def call_research_llm(prompt: str) -> str | None:
+    """Call research LLM with Google Search tool.
+
+    Uses google.genai directly to avoid ADK Runner app_name mismatch issues.
+    Uses Gemini's native google_search_retrieval tool for grounding.
+    Uses structured output to enforce JSON response format.
+    """
+    research_instruction = load_prompt("research")
+
+    # Use Gemini's native Google Search grounding tool
+    google_search_tool = types.Tool(
+        google_search=types.GoogleSearch(),
+    )
+
+    # Generate JSON schema from Pydantic model
+    research_schema = ResearchResult.model_json_schema()
+
+    config = types.GenerateContentConfig(
+        system_instruction=research_instruction,
+        tools=[google_search_tool],
+        response_mime_type="application/json",
+        response_schema=research_schema,
+    )
+
+    response = await _client.aio.models.generate_content(
+        model=Config.DEFAULT_MODEL,
+        contents=prompt,
+        config=config,
+    )
+
+    if response.text:
+        return response.text
+    return None
+
+
+async def call_content_llm(prompt: str) -> str | None:
+    """Call content generation LLM.
+
+    Uses google.genai directly to avoid ADK Runner app_name mismatch issues.
+    Uses structured output to enforce JSON response format.
+    """
+    content_instruction = load_prompt("content")
+    voice_instruction = load_prompt("voice")
+
+    # Combine content and voice instructions
+    full_instruction = f"{content_instruction}\n\n{voice_instruction}"
+
+    # Generate JSON schema from Pydantic model
+    content_schema = WaterfallPageDraft.model_json_schema()
+
+    config = types.GenerateContentConfig(
+        system_instruction=full_instruction,
+        response_mime_type="application/json",
+        response_schema=content_schema,
+    )
+
+    response = await _client.aio.models.generate_content(
+        model=Config.DEFAULT_MODEL,
+        contents=prompt,
+        config=config,
+    )
+
+    if response.text:
+        return response.text
+    return None
+
+
+async def check_for_duplicate(waterfall_name: str) -> dict | None:
     """Check if a page with this name already exists.
 
     Args:
         waterfall_name: Name of the waterfall to check
-        mcp_tools: MCP toolset instance
 
     Returns:
         Page dict if duplicate found, None otherwise
     """
-    # Use the list_pages tool to search
     try:
-        result = await mcp_tools.call_tool("list_pages", {"search": waterfall_name})
-        pages = json.loads(result) if isinstance(result, str) else result
+        mcp = get_mcp_client()
+        pages = await mcp.call_tool("list_pages", {"search": waterfall_name})
 
         if isinstance(pages, list) and len(pages) > 0:
             # Check for exact or close match
@@ -46,16 +116,39 @@ async def check_for_duplicate(waterfall_name: str, mcp_tools: Any) -> dict | Non
         return None
 
 
+def _normalize_category_name(name: str) -> str:
+    """Normalize category name to title case for proper nouns.
+
+    Handles common geographic naming conventions:
+    - "southern oregon" -> "Southern Oregon"
+    - "columbia river gorge" -> "Columbia River Gorge"
+    - "highway 138" -> "Highway 138"
+    """
+    # Title case the name
+    normalized = name.strip().title()
+
+    # Handle common lowercase words that should stay lowercase in titles
+    # (unless they're the first word)
+    lowercase_words = {"of", "the", "and", "in", "at", "to", "for", "on"}
+    words = normalized.split()
+    result = [words[0]]  # Keep first word as-is (title case)
+    for word in words[1:]:
+        if word.lower() in lowercase_words:
+            result.append(word.lower())
+        else:
+            result.append(word)
+
+    return " ".join(result)
+
+
 async def find_or_create_parent(
     parent_name: str | None,
-    mcp_tools: Any,
     user_id: int | str | None,
 ) -> int | None:
     """Find existing parent page or create a new category page.
 
     Args:
         parent_name: Name of the parent/category (e.g., "Oregon")
-        mcp_tools: MCP toolset instance
         user_id: Rails user ID for event streaming
 
     Returns:
@@ -64,10 +157,14 @@ async def find_or_create_parent(
     if not parent_name:
         return None
 
+    # Normalize the category name (e.g., "southern oregon" -> "Southern Oregon")
+    parent_name = _normalize_category_name(parent_name)
+
+    mcp = get_mcp_client()
+
     # Search for existing parent
     try:
-        result = await mcp_tools.call_tool("list_pages", {"search": parent_name})
-        pages = json.loads(result) if isinstance(result, str) else result
+        pages = await mcp.call_tool("list_pages", {"search": parent_name})
 
         if isinstance(pages, list):
             for page in pages:
@@ -76,16 +173,21 @@ async def find_or_create_parent(
                     return page["id"]
 
         # Parent not found - create it
-        emit_status_sync(user_id, f"Creating category page '{parent_name}'...")
-        draft = CategoryPageDraft(title=parent_name)
+        emit_status_sync(user_id, f"Creating category page '{parent_name}'...", "step_start")
 
-        create_result = await mcp_tools.call_tool(
+        created = await mcp.call_tool(
             "create_category_page",
-            {"draft": draft.model_dump()},
+            {"title": parent_name},
         )
-        created = json.loads(create_result) if isinstance(create_result, str) else create_result
-        parent_id = created.get("id")
-        logger.info(f"Created parent page: {parent_name} (ID: {parent_id})")
+        parent_id = created.get("id") if isinstance(created, dict) else None
+
+        if parent_id:
+            logger.info(f"Created parent page: {parent_name} (ID: {parent_id})")
+            emit_status_sync(user_id, f"Created '{parent_name}' (ID: {parent_id})", "step_complete")
+        else:
+            logger.warning(f"Failed to create parent page: {parent_name}")
+            emit_status_sync(user_id, f"Failed to create parent page '{parent_name}'", "step_error")
+
         return parent_id
 
     except Exception as e:
@@ -115,12 +217,11 @@ async def create_waterfall_page(
         Status message describing what was created or why it stopped
     """
     logger.info(f"Starting create pipeline for: {waterfall_name}")
-    mcp_tools = get_mcp_toolset()
 
     # Step 1: Check for duplicates
     emit_status_sync(user_id, "Checking for existing pages...", "step_start")
 
-    duplicate = await check_for_duplicate(waterfall_name, mcp_tools)
+    duplicate = await check_for_duplicate(waterfall_name)
     if duplicate:
         msg = f"DUPLICATE_FOUND: '{duplicate['title']}' already exists (ID: {duplicate['id']})"
         emit_status_sync(user_id, msg, "pipeline_stopped")
@@ -132,18 +233,26 @@ async def create_waterfall_page(
     emit_status_sync(user_id, f"Researching {waterfall_name}...", "step_start")
 
     try:
-        research_result = await research_agent.run_async(
+        research_text = await call_research_llm(
             f"Research the waterfall called {waterfall_name}. Find GPS coordinates, "
             f"trail distance, elevation gain, difficulty, and notable features."
         )
 
-        # Parse research result
-        if isinstance(research_result, ResearchResult):
-            research = research_result
-        elif isinstance(research_result, str):
-            research = ResearchResult.model_validate_json(research_result)
-        else:
-            research = ResearchResult.model_validate(research_result)
+        if not research_text:
+            msg = f"RESEARCH_FAILED: No response from research LLM for {waterfall_name}"
+            emit_status_sync(user_id, msg, "pipeline_error")
+            return msg
+
+        # Parse research result from JSON response
+        try:
+            research = ResearchResult.model_validate_json(research_text)
+        except Exception as parse_error:
+            # LLM returned non-JSON response - this is a failure
+            logger.warning(f"Could not parse research as JSON: {parse_error}")
+            logger.debug(f"Research text: {research_text[:500]}")
+            msg = f"RESEARCH_FAILED: Research returned invalid format. Expected JSON but got: {research_text[:200]}..."
+            emit_status_sync(user_id, msg, "pipeline_error")
+            return msg
 
         if not research.verified:
             msg = f"RESEARCH_FAILED: Could not verify '{waterfall_name}' exists. {research.verification_notes or ''}"
@@ -162,18 +271,25 @@ async def create_waterfall_page(
     emit_status_sync(user_id, "Writing engaging content...", "step_start")
 
     try:
-        content_result = await content_agent.run_async(
+        content_text = await call_content_llm(
             f"Create content for {waterfall_name} using this research:\n\n"
             f"{research.model_dump_json(indent=2)}"
         )
 
-        # Parse content result
-        if isinstance(content_result, WaterfallPageDraft):
-            draft = content_result
-        elif isinstance(content_result, str):
-            draft = WaterfallPageDraft.model_validate_json(content_result)
-        else:
-            draft = WaterfallPageDraft.model_validate(content_result)
+        if not content_text:
+            msg = f"CONTENT_FAILED: No response from content LLM for {waterfall_name}"
+            emit_status_sync(user_id, msg, "pipeline_error")
+            return msg
+
+        # Parse content result from JSON response
+        try:
+            draft = WaterfallPageDraft.model_validate_json(content_text)
+        except Exception as parse_error:
+            logger.error(f"Could not parse content as WaterfallPageDraft: {parse_error}")
+            logger.debug(f"Content text: {content_text[:500]}")
+            msg = f"CONTENT_FAILED: Invalid content format: {parse_error}"
+            emit_status_sync(user_id, msg, "pipeline_error")
+            return msg
 
         emit_status_sync(user_id, "Content ready", "step_complete")
 
@@ -187,18 +303,19 @@ async def create_waterfall_page(
     emit_status_sync(user_id, "Creating page in CMS...", "step_start")
 
     try:
+        mcp = get_mcp_client()
+
         # Find or create parent page
-        parent_id = await find_or_create_parent(parent_name, mcp_tools, user_id)
+        parent_id = await find_or_create_parent(parent_name, user_id)
 
-        # Convert draft to API format
-        page_data = draft.to_api_dict(parent_id=parent_id)
+        # Convert draft to MCP tool format
+        page_data = draft.to_mcp_dict(parent_id=parent_id)
 
-        # Create the page
-        create_result = await mcp_tools.call_tool("create_waterfall_page", {"draft": page_data})
-        created = json.loads(create_result) if isinstance(create_result, str) else create_result
+        # Create the page using the MCP create_waterfall_page tool
+        created = await mcp.call_tool("create_waterfall_page", page_data)
 
-        page_id = created.get("id")
-        page_title = created.get("title", draft.title)
+        page_id = created.get("id") if isinstance(created, dict) else None
+        page_title = created.get("title", draft.title) if isinstance(created, dict) else draft.title
         block_count = len(draft.blocks)
 
         parent_info = f"under '{parent_name}'" if parent_name else "at root level"

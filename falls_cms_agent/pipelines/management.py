@@ -1,36 +1,34 @@
 """Page Management Pipelines - tools for move, delete, publish, and update operations.
 
 These are simpler pipelines that don't require research or content generation.
-They interact directly with the CMS via MCP tools.
+They interact directly with the CMS via the MCP SDK client.
 """
 
-import json
 from typing import Any
 
 from google.adk.tools import FunctionTool
 
 from common.schemas import ContentBlock
 
-from ..agents.cms import get_mcp_toolset
 from ..core.callbacks import emit_status_sync
 from ..core.logging import get_logger
+from ..core.mcp_client import get_mcp_client
 
 logger = get_logger(__name__)
 
 
-async def find_page_by_name(page_name: str, mcp_tools: Any) -> dict | None:
+async def find_page_by_name(page_name: str) -> dict | None:
     """Find a page by name using search.
 
     Args:
         page_name: Name/title of the page to find
-        mcp_tools: MCP toolset instance
 
     Returns:
         Page dict if found, None otherwise
     """
     try:
-        result = await mcp_tools.call_tool("list_pages", {"search": page_name})
-        pages = json.loads(result) if isinstance(result, str) else result
+        mcp = get_mcp_client()
+        pages = await mcp.call_tool("list_pages", {"search": page_name})
 
         if isinstance(pages, list):
             # Try exact match first
@@ -67,11 +65,11 @@ async def move_page(
         Status message
     """
     logger.info(f"Moving page '{page_name}' to '{new_parent_name or 'root'}'")
-    mcp_tools = get_mcp_toolset()
+    mcp = get_mcp_client()
 
     # Find the page to move
     emit_status_sync(session_id, f"Finding '{page_name}'...", "step_start")
-    page = await find_page_by_name(page_name, mcp_tools)
+    page = await find_page_by_name(page_name)
     if not page:
         return f"ERROR: Could not find page '{page_name}'"
 
@@ -82,7 +80,7 @@ async def move_page(
     new_parent_id = None
     if new_parent_name:
         emit_status_sync(session_id, f"Finding parent '{new_parent_name}'...", "step_start")
-        parent = await find_page_by_name(new_parent_name, mcp_tools)
+        parent = await find_page_by_name(new_parent_name)
         if not parent:
             return f"ERROR: Could not find parent page '{new_parent_name}'"
         new_parent_id = parent["id"]
@@ -91,7 +89,7 @@ async def move_page(
     # Execute the move
     emit_status_sync(session_id, "Moving page...", "step_start")
     try:
-        await mcp_tools.call_tool(
+        await mcp.call_tool(
             "move_page",
             {
                 "page_id": page_id,
@@ -132,11 +130,11 @@ async def delete_page(
         Status message
     """
     logger.info(f"Deleting page '{page_name}'")
-    mcp_tools = get_mcp_toolset()
+    mcp = get_mcp_client()
 
     # Find the page
     emit_status_sync(session_id, f"Finding '{page_name}'...", "step_start")
-    page = await find_page_by_name(page_name, mcp_tools)
+    page = await find_page_by_name(page_name)
     if not page:
         return f"ERROR: Could not find page '{page_name}'"
 
@@ -147,7 +145,7 @@ async def delete_page(
     # Delete the page
     emit_status_sync(session_id, "Deleting page...", "step_start")
     try:
-        await mcp_tools.call_tool("delete_page", {"page_id": page_id})
+        await mcp.call_tool("delete_page", {"page_id": page_id})
 
         msg = f"SUCCESS: Deleted '{page_title}' (ID: {page_id})"
         emit_status_sync(session_id, msg, "pipeline_complete")
@@ -184,11 +182,11 @@ async def run_publish_pipeline(
     """
     action = "Publishing" if publish else "Unpublishing"
     logger.info(f"{action} page '{page_name}'")
-    mcp_tools = get_mcp_toolset()
+    mcp = get_mcp_client()
 
     # Find the page
     emit_status_sync(session_id, f"Finding '{page_name}'...", "step_start")
-    page = await find_page_by_name(page_name, mcp_tools)
+    page = await find_page_by_name(page_name)
     if not page:
         return f"ERROR: Could not find page '{page_name}'"
 
@@ -206,7 +204,7 @@ async def run_publish_pipeline(
     emit_status_sync(session_id, f"{action}...", "step_start")
     try:
         tool = "publish_page" if publish else "unpublish_page"
-        await mcp_tools.call_tool(tool, {"page_id": page_id})
+        await mcp.call_tool(tool, {"page_id": page_id})
 
         state = "published" if publish else "draft"
         msg = f"SUCCESS: '{page_title}' is now {state}"
@@ -241,25 +239,27 @@ unpublish_pipeline_tool = FunctionTool(func=unpublish_page)
 
 async def update_page_content(
     page_name: str,
-    blocks: list[dict[str, str]],
+    block_name: str,
+    block_content: str,
     session_id: str | None = None,
 ) -> str:
-    """Update content blocks on a page. Provide block name and HTML content.
+    """Update a single content block on a page.
 
     Args:
         page_name: Name of the page to update
-        blocks: List of block dicts with 'name' and 'content' keys
+        block_name: Name of the block to update (e.g., 'cjBlockHero')
+        block_content: HTML content for the block
         session_id: Optional session ID for event streaming
 
     Returns:
         Status message
     """
     logger.info(f"Updating content for '{page_name}'")
-    mcp_tools = get_mcp_toolset()
+    mcp = get_mcp_client()
 
     # Find the page
     emit_status_sync(session_id, f"Finding '{page_name}'...", "step_start")
-    page = await find_page_by_name(page_name, mcp_tools)
+    page = await find_page_by_name(page_name)
     if not page:
         return f"ERROR: Could not find page '{page_name}'"
 
@@ -267,24 +267,21 @@ async def update_page_content(
     page_title = page["title"]
     emit_status_sync(session_id, f"Found '{page_title}' (ID: {page_id})", "step_complete")
 
-    # Update blocks
-    emit_status_sync(session_id, "Updating content blocks...", "step_start")
+    # Update block
+    emit_status_sync(session_id, f"Updating block '{block_name}'...", "step_start")
     try:
-        # Validate blocks
-        validated_blocks = [
-            ContentBlock(name=b["name"], content=b["content"]).model_dump() for b in blocks
-        ]
+        # Validate block
+        validated_block = ContentBlock(name=block_name, content=block_content).model_dump()
 
-        await mcp_tools.call_tool(
+        await mcp.call_tool(
             "update_page_content",
             {
                 "page_id": page_id,
-                "blocks": validated_blocks,
+                "blocks": [validated_block],
             },
         )
 
-        block_names = [b["name"] for b in blocks]
-        msg = f"SUCCESS: Updated {len(blocks)} blocks on '{page_title}': {', '.join(block_names)}"
+        msg = f"SUCCESS: Updated block '{block_name}' on '{page_title}'"
         emit_status_sync(session_id, msg, "pipeline_complete")
         return msg
 
@@ -318,7 +315,7 @@ async def search_pages(
         Formatted list of matching pages
     """
     logger.info(f"Searching pages: query='{query}', parent='{parent_name}'")
-    mcp_tools = get_mcp_toolset()
+    mcp = get_mcp_client()
 
     emit_status_sync(session_id, "Searching...", "step_start")
 
@@ -328,12 +325,11 @@ async def search_pages(
             params["search"] = query
         if parent_name:
             # Find parent ID first
-            parent = await find_page_by_name(parent_name, mcp_tools)
+            parent = await find_page_by_name(parent_name)
             if parent:
                 params["parent_id"] = str(parent["id"])
 
-        result = await mcp_tools.call_tool("list_pages", params)
-        pages = json.loads(result) if isinstance(result, str) else result
+        pages = await mcp.call_tool("list_pages", params)
 
         if not pages:
             return "No pages found matching your criteria."
@@ -390,17 +386,16 @@ async def get_page_details(
         Formatted page details
     """
     logger.info(f"Getting details for '{page_name}'")
-    mcp_tools = get_mcp_toolset()
+    mcp = get_mcp_client()
 
     emit_status_sync(session_id, f"Finding '{page_name}'...", "step_start")
-    page = await find_page_by_name(page_name, mcp_tools)
+    page = await find_page_by_name(page_name)
     if not page:
         return f"ERROR: Could not find page '{page_name}'"
 
     # Get full details
     try:
-        result = await mcp_tools.call_tool("get_page", {"page_id": page["id"]})
-        details = json.loads(result) if isinstance(result, str) else result
+        details = await mcp.call_tool("get_page", {"page_id": page["id"]})
 
         # Format output
         lines = [

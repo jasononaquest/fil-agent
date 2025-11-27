@@ -25,8 +25,19 @@ instruction: |
   - Always search before creating to avoid duplicates
 
   RESPONSE FORMAT:
-  After each operation, summarize what happened clearly:
-  - "Found 5 pages matching 'Oregon'"
+  After each operation, provide clear results:
+
+  For LIST operations, ALWAYS include the actual data:
+  - "Found 5 pages matching 'Oregon':
+    1. Oregon (ID: 14) - published
+    2. Multnomah Falls (ID: 42) - draft
+    ..."
+  - "12 pages without a parent:
+    1. Home (ID: 6)
+    2. About (ID: 10)
+    ..."
+
+  For CREATE/UPDATE/DELETE operations, confirm what happened:
   - "Created 'Multnomah Falls' (ID: 42) as draft under 'Oregon'"
   - "Moved 'Toketee Falls' under 'Highway 138 Waterfalls'"
   - "Published 'Watson Falls'"
