@@ -8,8 +8,10 @@ from google.adk.agents import LlmAgent
 from google.adk.tools import AgentTool
 
 from .agents.cms import cms_agent
+from .agents.content import content_agent
+from .agents.research import research_agent
 from .config import Config
-from .pipelines.create_page import create_waterfall_pipeline
+from .pipelines.create_page import check_existing_agent, create_in_cms_agent
 
 # Coordinator instruction - the main orchestrator
 COORDINATOR_INSTRUCTION = """You are the content assistant for Falls Into Love, a waterfall
@@ -28,9 +30,13 @@ For page creation requests like:
 - "Add Latourell Falls to Oregon"
 - "Write about Horsetail Falls in the Columbia River Gorge"
 
-→ Use the create_waterfall_pipeline tool
-→ Set waterfall_name to the waterfall name
-→ Set parent_page_name if a category/region is mentioned
+→ You MUST call these tools IN ORDER:
+  1. check_existing - Check for duplicate pages and identify parent page
+  2. research_agent - Research the waterfall (GPS, trail info, facts)
+  3. content_agent - Write engaging content using the research
+  4. create_in_cms - Create the page in the CMS with the content
+
+→ IMPORTANT: Do NOT skip steps! Each step depends on the previous step's output.
 
 For search/list requests like:
 - "What pages do we have for Oregon?"
@@ -42,28 +48,26 @@ For search/list requests like:
 For update requests like:
 - "Update the Multnomah Falls page to mention the trail closure"
 - "Change the difficulty to Moderate"
-- "Move Watson Falls and Toketee Falls under Highway 138"
 
 → Use the cms_agent tool
-→ For SINGLE page updates: get the page first, then update
-→ For MULTI-page updates: let cms_agent handle searching and updating all pages
-→ IMPORTANT: Don't assume you know page IDs - the cms_agent will look them up
 
 HANDLING PIPELINE RESULTS:
-The pipeline may return these signals - respond appropriately:
+Watch for these signals during page creation:
 
 1. "DUPLICATE_FOUND: [title] (ID: [id])"
-   → Tell the user: "I found an existing page for [name] (ID: [id]). Would you like me to update it instead?"
+   → STOP the pipeline! Tell user: "I found an existing page for [name]. Update it instead?"
 
 2. "RESEARCH_FAILED: Could not verify [name]"
-   → Tell the user: "I couldn't verify that [name] is a real waterfall. Could you double-check the name?"
+   → STOP the pipeline! Tell user: "I couldn't verify [name] is a real waterfall."
 
-3. "PIPELINE_STOPPED: [reason]"
-   → Tell the user the reason the pipeline stopped and offer alternatives
+3. "PIPELINE_STOP: [reason]"
+   → STOP the pipeline! Tell the user the reason.
+
+When a stop signal is found, DO NOT call subsequent tools.
 
 HANDLING MULTIPLE REQUESTS:
 For requests like "Add Latourell Falls, Horsetail Falls, and Wahkeena Falls to Oregon":
-- Process each waterfall sequentially
+- Process each waterfall sequentially (all 4 steps for each)
 - Report progress after each: "Created Latourell Falls... now working on Horsetail Falls..."
 - Summarize at the end: "Created 3 pages under Oregon: [list]"
 
@@ -76,13 +80,19 @@ COMMUNICATION STYLE:
 
 
 # Define the root agent - the main entry point
+# Each sub-agent is exposed as a tool so we get individual function_call events
 root_agent = LlmAgent(
     name="falls_cms_assistant",
     model=Config.DEFAULT_MODEL,
     description="Content assistant for Falls Into Love CMS - creates and manages waterfall pages.",
     instruction=COORDINATOR_INSTRUCTION,
     tools=[
-        AgentTool(agent=create_waterfall_pipeline),
+        # Pipeline steps exposed individually for streaming visibility
+        AgentTool(agent=check_existing_agent),
+        AgentTool(agent=research_agent),
+        AgentTool(agent=content_agent),
+        AgentTool(agent=create_in_cms_agent),
+        # General CMS operations
         AgentTool(agent=cms_agent),
     ],
 )

@@ -3,6 +3,7 @@
 from google.adk.agents import LlmAgent
 from google.adk.tools import google_search
 
+from ..callbacks import research_callback
 from ..config import Config
 from ..prompts.research import RESEARCH_INSTRUCTION
 
@@ -24,6 +25,7 @@ def create_research_agent() -> LlmAgent:
         instruction=RESEARCH_INSTRUCTION,
         tools=[google_search],
         output_key="research_results",
+        before_agent_callback=research_callback,
     )
 
 

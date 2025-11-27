@@ -5,6 +5,7 @@ from google.adk.agents import LlmAgent, SequentialAgent
 from ..agents.cms import cms_agent
 from ..agents.content import content_agent
 from ..agents.research import research_agent
+from ..callbacks import check_existing_callback, create_in_cms_callback
 from ..config import Config
 
 # Step 1: Check for existing pages (using CMS agent)
@@ -39,6 +40,7 @@ This PARENT_PAGE line is critical - downstream steps depend on it!
 """,
     tools=[cms_agent.tools[0]],  # Share the MCP toolset
     output_key="duplicate_check",
+    before_agent_callback=check_existing_callback,
 )
 
 
@@ -88,6 +90,7 @@ Report what was created:
 """,
     tools=[cms_agent.tools[0]],  # Share the MCP toolset
     output_key="created_page",
+    before_agent_callback=create_in_cms_callback,
 )
 
 

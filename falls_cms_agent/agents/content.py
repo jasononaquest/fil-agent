@@ -2,6 +2,7 @@
 
 from google.adk.agents import LlmAgent
 
+from ..callbacks import content_callback
 from ..config import Config
 from ..prompts.content import CONTENT_INSTRUCTION
 
@@ -41,6 +42,7 @@ Output ONLY the JSON object, no additional text or markdown code fences.
 """,
         tools=[],  # No tools - pure content generation
         output_key="crafted_content",
+        before_agent_callback=content_callback,
     )
 
 
