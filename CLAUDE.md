@@ -277,25 +277,28 @@ source .venv/bin/activate
 # 1. Copy .env into the package directory (REQUIRED - ADK bundles from package dir)
 cp .env falls_cms_agent/.env
 
-# 2. Deploy (use --agent_engine_id to UPDATE existing, omit to create new)
+# 2. Deploy (--agent_engine_id flag is broken, each deploy creates new agent)
 adk deploy agent_engine \
   --project=fil-mcp \
   --region=us-west1 \
   --staging_bucket=gs://run-sources-fil-mcp-us-west1 \
   --display_name="Falls CMS Agent" \
   --trace_to_cloud \
-  --agent_engine_id=2033533561432178688 \
   falls_cms_agent
+
+# After deploy, update AGENT_ENGINE_ID in Rails config/deploy.yml with new ID
 
 # 3. Test the deployed agent
 python test_deployed_agent.py "List all pages"
 ```
 
 ### Current Deployment
-- **Resource ID**: `2033533561432178688`
-- **Full Resource Name**: `projects/256129779474/locations/us-west1/reasoningEngines/2033533561432178688`
+- **Resource ID**: `8933048190563778560`
+- **Full Resource Name**: `projects/256129779474/locations/us-west1/reasoningEngines/8933048190563778560`
 - **Region**: us-west1
 - **Project**: fil-mcp
+
+**Note**: ADK `--agent_engine_id` flag is broken (404 on agentEngines endpoint), so each deploy creates a new agent. Update `AGENT_ENGINE_ID` in the Rails `config/deploy.yml` after each deployment.
 
 ### Key Points
 - `.env` must be copied into `falls_cms_agent/` before deployment (ADK bundles from package dir)
