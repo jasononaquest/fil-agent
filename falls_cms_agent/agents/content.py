@@ -2,8 +2,7 @@
 
 from google.adk.agents import LlmAgent
 
-from common.schemas import WaterfallPageDraft
-
+from ..common.schemas import WaterfallPageDraft
 from ..core.callbacks import content_callback
 from ..core.config import Config
 from ..core.prompts import load_prompt

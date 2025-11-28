@@ -3,8 +3,7 @@
 from google.adk.agents import LlmAgent
 from google.adk.tools import google_search
 
-from common.schemas import ResearchResult
-
+from ..common.schemas import ResearchResult
 from ..core.callbacks import research_callback
 from ..core.config import Config
 from ..core.prompts import load_prompt
