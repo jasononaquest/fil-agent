@@ -11,8 +11,7 @@ from google import genai
 from google.adk.tools import FunctionTool
 from google.genai import types
 
-from common.schemas import ResearchResult, WaterfallPageDraft
-
+from ..common.schemas import ResearchResult, WaterfallPageDraft
 from ..core.callbacks import emit_status_sync
 from ..core.config import Config
 from ..core.logging import get_logger

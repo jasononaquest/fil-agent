@@ -2,8 +2,7 @@
 
 from google.adk.agents import LlmAgent
 
-from common.schemas import UserIntent
-
+from ..common.schemas import UserIntent
 from ..core.config import Config
 from ..core.prompts import load_prompt
 

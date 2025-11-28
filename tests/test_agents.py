@@ -153,7 +153,7 @@ class TestSchemas:
 
     def test_user_intent_schema(self):
         """UserIntent schema should be valid."""
-        from common.schemas import IntentAction, UserIntent
+        from falls_cms_agent.common.schemas import IntentAction, UserIntent
 
         intent = UserIntent(
             reasoning="User wants to create a page for Multnomah Falls",
@@ -167,7 +167,12 @@ class TestSchemas:
 
     def test_waterfall_page_draft_schema(self):
         """WaterfallPageDraft should convert to API dict."""
-        from common.schemas import ContentBlock, Difficulty, HikeType, WaterfallPageDraft
+        from falls_cms_agent.common.schemas import (
+            ContentBlock,
+            Difficulty,
+            HikeType,
+            WaterfallPageDraft,
+        )
 
         draft = WaterfallPageDraft(
             title="Test Falls",
@@ -189,7 +194,7 @@ class TestSchemas:
 
     def test_research_result_schema(self):
         """ResearchResult schema should be valid."""
-        from common.schemas import ResearchResult
+        from falls_cms_agent.common.schemas import ResearchResult
 
         result = ResearchResult(
             waterfall_name="Multnomah Falls",
