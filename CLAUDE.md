@@ -25,8 +25,8 @@ This is a Google ADK (Agent Development Kit) agent that powers conversational co
 - **Pipeline**: SequentialAgent orchestrates the page creation workflow
 
 **Relationship to Other Projects:**
-- **Falls Into Love (Rails)**: The main CMS at `/home/fil/falls_into_love/`
-- **Falls MCP Server**: The MCP server at `/home/fil/falls_into_love_mcp/`
+- **Falls Into Love (Rails)**: The main CMS application
+- **Falls MCP Server**: The MCP server that connects agent to Rails API
 
 **For detailed architecture, see**: The agent plan documentation in the main Rails project.
 
@@ -34,7 +34,6 @@ This is a Google ADK (Agent Development Kit) agent that powers conversational co
 
 ### Setup
 ```bash
-cd /home/fil/falls_into_love_agent
 python -m venv .venv
 source .venv/bin/activate
 pip install -e ".[dev]"
@@ -61,18 +60,16 @@ adk api_server
 
 ### Local Full-Stack Testing
 ```bash
-# Terminal 1 - Rails API
-cd /home/fil/falls_into_love && bin/dev
+# Terminal 1 - Rails API (in the Rails project directory)
+bin/dev
 
-# Terminal 2 - MCP Server (SSE mode)
-cd /home/fil/falls_into_love_mcp
+# Terminal 2 - MCP Server (in the MCP project directory)
 source .venv/bin/activate
 RAILS_API_URL=http://localhost:3000/api/v1 \
 RAILS_API_TOKEN=your-token \
 MCP_TRANSPORT=sse PORT=8000 python server.py
 
-# Terminal 3 - ADK Agent
-cd /home/fil/falls_into_love_agent
+# Terminal 3 - ADK Agent (in this directory)
 source .venv/bin/activate
 adk web --port 8001
 ```
@@ -262,7 +259,7 @@ MCP_API_KEY=                              # Optional
 ### Adding MCP Tools
 
 MCP tools come from the MCP server, not this project. To add new tools:
-1. Add the tool to `/home/fil/falls_into_love_mcp/`
+1. Add the tool to the MCP server project
 2. Restart the MCP server
 3. Update `prompts/cms.py` to document the new tool
 4. Update agent instructions to use the new tool
@@ -274,19 +271,22 @@ MCP tools come from the MCP server, not this project. To add new tools:
 **Use the deploy script** - it handles everything automatically:
 
 ```bash
-cd /home/fil/falls_into_love_agent
+# First, create .deploy.env from the example
+cp .deploy.env.example .deploy.env
+# Edit .deploy.env with your GCP project details and secrets
+
+# Then deploy
 ./deploy.sh
 ```
 
 The script:
-1. Generates production `.env` in `falls_cms_agent/` (with correct Vertex AI settings)
-2. Runs `adk deploy`
-3. Extracts and displays the new agent ID
-4. Updates this CLAUDE.md with the new ID
+1. Loads configuration from `.deploy.env`
+2. Generates production `.env` in `falls_cms_agent/` (with correct Vertex AI settings)
+3. Runs `adk deploy`
+4. Extracts and displays the new agent ID
 
 After the script completes, deploy Rails:
 ```bash
-cd /home/fil/falls_into_love
 kamal deploy
 ```
 
@@ -306,29 +306,28 @@ kamal deploy
 The deploy script generates the production `.env` automatically. Never manually copy the local `.env` to the package directory.
 
 ### Current Deployment
-- **Resource ID**: `2829544795569913856`
-- **Full Resource Name**: `projects/256129779474/locations/us-west1/reasoningEngines/3324940754580668416`
-- **Region**: us-west1
-- **Project**: fil-mcp
 
-**Note**: ADK `--agent_engine_id` flag is broken (404 on agentEngines endpoint), so each deploy creates a new agent. The deploy script handles updating the ID automatically.
+Deployment details are stored in `.deploy.env` (not committed). Run `./list-agents.sh` to see deployed agents.
+
+**Note**: ADK `--agent_engine_id` flag is broken (404 on agentEngines endpoint), so each deploy creates a new agent.
 
 ### Testing Deployed Agent
 ```bash
-# CLI test script
+# CLI test script (reads config from .deploy.env)
 python test_deployed_agent.py "List all pages"
 python test_deployed_agent.py "Create a page for Snoqualmie Falls"
 
 # View traces in Cloud Console
-# https://console.cloud.google.com/traces/list?project=fil-mcp
+# https://console.cloud.google.com/traces/list?project=YOUR_PROJECT_ID
 ```
 
 ### Delete Old Deployments
 ```bash
-# Via REST API (force=true to delete sessions)
-curl -X DELETE \
-  "https://us-west1-aiplatform.googleapis.com/v1beta1/projects/256129779474/locations/us-west1/reasoningEngines/3324940754580668416{ID}?force=true" \
-  -H "Authorization: Bearer $(gcloud auth print-access-token)"
+# Use the helper script
+./delete-agent.sh <agent_id>
+
+# Or list agents first
+./list-agents.sh
 ```
 
 ## Nice to Haves (Future Improvements)

@@ -3,19 +3,35 @@
 # List Falls CMS Agents in Vertex AI Agent Engine
 # ===========================================
 # Shows all deployed reasoning engines in the project.
+# Uses configuration from .deploy.env (same as deploy.sh).
 #
 # Usage: ./list-agents.sh
 
 set -e
 
-# Configuration (matches deploy.sh)
-PROJECT_NUMBER="256129779474"
-PROJECT_ID="fil-mcp"
-REGION="us-west1"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+DEPLOY_ENV="$SCRIPT_DIR/.deploy.env"
+
+# Load configuration
+if [[ -f "$DEPLOY_ENV" ]]; then
+    # shellcheck source=/dev/null
+    source "$DEPLOY_ENV"
+fi
+
+# Allow environment variable overrides, with defaults for required values
+PROJECT_NUMBER="${PROJECT_NUMBER:-}"
+PROJECT_ID="${PROJECT_ID:-}"
+REGION="${REGION:-us-west1}"
+
+if [[ -z "$PROJECT_NUMBER" ]]; then
+    echo "❌ PROJECT_NUMBER not set"
+    echo "   Either create .deploy.env or set PROJECT_NUMBER environment variable"
+    exit 1
+fi
 
 echo "=== Deployed Agents in Agent Engine ==="
 echo ""
-echo "   Project: $PROJECT_ID ($PROJECT_NUMBER)"
+echo "   Project: ${PROJECT_ID:-$PROJECT_NUMBER}"
 echo "   Region: $REGION"
 echo ""
 

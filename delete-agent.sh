@@ -3,7 +3,7 @@
 # Delete a Falls CMS Agent from Vertex AI Agent Engine
 # ===========================================
 # This script deletes a deployed agent using the REST API.
-# Use --force to delete agents with active sessions.
+# Uses configuration from .deploy.env (same as deploy.sh).
 #
 # Usage:
 #   ./delete-agent.sh <agent_id>
@@ -11,13 +11,28 @@
 #
 # Examples:
 #   ./delete-agent.sh 9205515968019693568
-#   ./delete-agent.sh projects/256129779474/locations/us-west1/reasoningEngines/9205515968019693568
+#   ./delete-agent.sh projects/123456789/locations/us-west1/reasoningEngines/9205515968019693568
 
 set -e
 
-# Configuration (matches deploy.sh)
-PROJECT_NUMBER="256129779474"
-REGION="us-west1"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+DEPLOY_ENV="$SCRIPT_DIR/.deploy.env"
+
+# Load configuration
+if [[ -f "$DEPLOY_ENV" ]]; then
+    # shellcheck source=/dev/null
+    source "$DEPLOY_ENV"
+fi
+
+# Allow environment variable overrides, with defaults for required values
+PROJECT_NUMBER="${PROJECT_NUMBER:-}"
+REGION="${REGION:-us-west1}"
+
+if [[ -z "$PROJECT_NUMBER" ]]; then
+    echo "❌ PROJECT_NUMBER not set"
+    echo "   Either create .deploy.env or set PROJECT_NUMBER environment variable"
+    exit 1
+fi
 
 # Parse arguments
 if [[ -z "$1" ]]; then
@@ -25,7 +40,7 @@ if [[ -z "$1" ]]; then
     echo ""
     echo "Examples:"
     echo "  $0 9205515968019693568"
-    echo "  $0 projects/256129779474/locations/us-west1/reasoningEngines/9205515968019693568"
+    echo "  $0 projects/$PROJECT_NUMBER/locations/$REGION/reasoningEngines/9205515968019693568"
     echo ""
     echo "To list current agents, run:"
     echo "  ./list-agents.sh"

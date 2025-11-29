@@ -93,28 +93,31 @@ adk deploy agent_engine \
 ```
 
 
-Local Testing (Full Stack)
+## Local Testing (Full Stack)
 
-Terminal 1 - Rails API:
-cd /home/fil/falls_into_love
+**Terminal 1 - Rails API** (in the Rails project):
+```bash
 bin/dev
 # Runs on localhost:3000
+```
 
-Terminal 2 - MCP Server (SSE mode):
-cd /home/fil/falls_into_love_mcp
+**Terminal 2 - MCP Server** (in the MCP project):
+```bash
 source .venv/bin/activate
-
-# Point to local Rails and run in SSE mode
 RAILS_API_URL=http://localhost:3000/api/v1 \
 RAILS_API_TOKEN=your-local-api-token \
 MCP_TRANSPORT=sse \
 PORT=8000 \
 python server.py
+```
 
-Terminal 3 - ADK Agent:
-cd /home/fil/falls_into_love_agent
+**Terminal 3 - ADK Agent** (in this directory):
+```bash
 source .venv/bin/activate
 adk web
+```
 
-Update ADK's .env for local:
+Update `.env` for local:
+```
 MCP_SERVER_URL=http://localhost:8000/sse
+```

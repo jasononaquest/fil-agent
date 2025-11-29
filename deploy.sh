@@ -3,24 +3,63 @@
 # Deploy Falls CMS Agent to Vertex AI Agent Engine
 # ===========================================
 # This script handles all deployment steps:
-# 1. Generates production .env in the package directory
-# 2. Runs adk deploy
-# 3. Extracts and displays the new agent ID
+# 1. Loads configuration from .deploy.env (create from .deploy.env.example)
+# 2. Generates production .env in the package directory
+# 3. Runs adk deploy
+# 4. Extracts and displays the new agent ID
 #
 # Usage: ./deploy.sh
+#
+# Required: Create .deploy.env with your project-specific values
+# (copy from .deploy.env.example and fill in)
 
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PACKAGE_DIR="$SCRIPT_DIR/falls_cms_agent"
+DEPLOY_ENV="$SCRIPT_DIR/.deploy.env"
 
-# Production configuration
-PROJECT_ID="fil-mcp"
-REGION="us-west1"
-STAGING_BUCKET="gs://run-sources-fil-mcp-us-west1"
-MCP_SERVER_URL="https://falls-mcp-server-256129779474.us-west1.run.app/sse"
-RAILS_EVENTS_URL="https://staging.fallsintolove.com/api/internal/agent_events"
-INTERNAL_API_TOKEN="REDACTED_TOKEN"
+# ===========================================
+# Load configuration
+# ===========================================
+if [[ ! -f "$DEPLOY_ENV" ]]; then
+    echo "❌ Missing .deploy.env file"
+    echo ""
+    echo "Create it from the example:"
+    echo "  cp .deploy.env.example .deploy.env"
+    echo "  # Edit .deploy.env with your values"
+    echo ""
+    exit 1
+fi
+
+# shellcheck source=/dev/null
+source "$DEPLOY_ENV"
+
+# Validate required variables
+REQUIRED_VARS=(
+    "PROJECT_ID"
+    "PROJECT_NUMBER"
+    "REGION"
+    "STAGING_BUCKET"
+    "MCP_SERVER_URL"
+    "RAILS_EVENTS_URL"
+    "INTERNAL_API_TOKEN"
+)
+
+MISSING=()
+for var in "${REQUIRED_VARS[@]}"; do
+    if [[ -z "${!var}" ]]; then
+        MISSING+=("$var")
+    fi
+done
+
+if [[ ${#MISSING[@]} -gt 0 ]]; then
+    echo "❌ Missing required variables in .deploy.env:"
+    for var in "${MISSING[@]}"; do
+        echo "   - $var"
+    done
+    exit 1
+fi
 
 echo "=== Falls CMS Agent Deployment ==="
 echo ""
@@ -91,25 +130,16 @@ fi
 echo "✅ Deployment successful!"
 echo ""
 echo "   New Agent ID: $AGENT_ID"
-echo "   Full resource: projects/256129779474/locations/$REGION/reasoningEngines/$AGENT_ID"
+echo "   Full resource: projects/$PROJECT_NUMBER/locations/$REGION/reasoningEngines/$AGENT_ID"
 echo ""
 echo "   Note: Rails will fetch this ID automatically at deploy time via .kamal/secrets"
 echo ""
-
-# Step 5: Update agent CLAUDE.md (for documentation purposes)
-CLAUDE_MD="$SCRIPT_DIR/CLAUDE.md"
-if [[ -f "$CLAUDE_MD" ]]; then
-    echo "📝 Updating CLAUDE.md..."
-    sed -i "s/Resource ID\`: \`[0-9]*\`/Resource ID\`: \`$AGENT_ID\`/" "$CLAUDE_MD"
-    sed -i "s|reasoningEngines/[0-9]*|reasoningEngines/$AGENT_ID|" "$CLAUDE_MD"
-    echo "   Updated resource ID references"
-fi
 
 echo ""
 echo "=== Deployment Complete ==="
 echo ""
 echo "Next steps:"
-echo "  1. Deploy Rails app: cd /home/fil/falls_into_love && kamal deploy"
+echo "  1. Deploy Rails app: kamal deploy"
 echo "     (Agent ID will be fetched automatically from GCP)"
-echo "  2. Test the assistant at https://staging.fallsintolove.com/offtrail/assistant"
+echo "  2. Test the assistant at your staging URL"
 echo ""
