@@ -10,7 +10,7 @@ from vertexai.preview import reasoning_engines
 # Configuration
 PROJECT = "fil-mcp"
 LOCATION = "us-west1"
-AGENT_ID = "2438857527895523328"
+AGENT_ID = "8130281556984987648"
 
 
 def test_agent(message: str = "List all pages in the CMS"):

@@ -8,12 +8,13 @@ we use google.genai directly for sub-agent calls instead of nested Runners.
 """
 
 from google import genai
-from google.adk.tools import FunctionTool
+from google.adk.tools import FunctionTool, ToolContext
 from google.genai import types
 
 from ..common.schemas import ResearchResult, WaterfallPageDraft
 from ..core.callbacks import emit_status_sync
 from ..core.config import Config
+from ..core.context import set_user_id
 from ..core.logging import get_logger
 from ..core.mcp_client import get_mcp_client
 from ..core.prompts import load_prompt
@@ -140,15 +141,11 @@ def _normalize_category_name(name: str) -> str:
     return " ".join(result)
 
 
-async def find_or_create_parent(
-    parent_name: str | None,
-    user_id: int | str | None,
-) -> int | None:
+async def find_or_create_parent(parent_name: str | None) -> int | None:
     """Find existing parent page or create a new category page.
 
     Args:
         parent_name: Name of the parent/category (e.g., "Oregon")
-        user_id: Rails user ID for event streaming
 
     Returns:
         Parent page ID, or None if no parent specified
@@ -172,7 +169,7 @@ async def find_or_create_parent(
                     return page["id"]
 
         # Parent not found - create it
-        emit_status_sync(user_id, f"Creating category page '{parent_name}'...", "step_start")
+        emit_status_sync(f"Creating category page '{parent_name}'...", "step_start")
 
         created = await mcp.call_tool(
             "create_category_page",
@@ -182,10 +179,10 @@ async def find_or_create_parent(
 
         if parent_id:
             logger.info(f"Created parent page: {parent_name} (ID: {parent_id})")
-            emit_status_sync(user_id, f"Created '{parent_name}' (ID: {parent_id})", "step_complete")
+            emit_status_sync(f"Created '{parent_name}' (ID: {parent_id})", "step_complete")
         else:
             logger.warning(f"Failed to create parent page: {parent_name}")
-            emit_status_sync(user_id, f"Failed to create parent page '{parent_name}'", "step_error")
+            emit_status_sync(f"Failed to create parent page '{parent_name}'", "step_error")
 
         return parent_id
 
@@ -197,7 +194,7 @@ async def find_or_create_parent(
 async def create_waterfall_page(
     waterfall_name: str,
     parent_name: str | None = None,
-    user_id: int | str | None = None,
+    tool_context: ToolContext | None = None,
 ) -> str:
     """Research and create a new waterfall page with engaging content.
 
@@ -207,29 +204,58 @@ async def create_waterfall_page(
     3. Content generation with brand voice
     4. CMS page creation
 
+    The tool_context is injected by ADK and contains state including user_id.
+
     Args:
         waterfall_name: Name of the waterfall to create a page for (e.g., "Multnomah Falls")
         parent_name: Optional parent/category name (e.g., "Oregon")
-        user_id: Optional Rails user ID for real-time event streaming to UI
+        tool_context: Injected by ADK - contains state with user_id for event streaming
 
     Returns:
         Status message describing what was created or why it stopped
     """
-    logger.info(f"Starting create pipeline for: {waterfall_name}")
+    logger.info("=" * 60)
+    logger.info("[PIPELINE] create_waterfall_page STARTED")
+    logger.info(f"[PIPELINE] waterfall_name={waterfall_name}, parent_name={parent_name}")
+    logger.info(f"[PIPELINE] tool_context type: {type(tool_context)}")
+
+    # Extract user_id from tool_context and set in ContextVar for emit_status_sync
+    # ADK puts user_id directly on tool_context as an attribute (not in state!)
+    user_id = None
+
+    if tool_context:
+        # ADK provides user_id directly on tool_context
+        if hasattr(tool_context, "user_id"):
+            user_id = tool_context.user_id
+            logger.info(f"[PIPELINE] tool_context.user_id = {user_id}")
+
+        if user_id:
+            set_user_id(user_id)
+            logger.info(f"[PIPELINE] SUCCESS: Set user_id={user_id} in ContextVar")
+        else:
+            logger.warning("[PIPELINE] PROBLEM: tool_context.user_id is None or missing")
+    else:
+        logger.warning("[PIPELINE] PROBLEM: tool_context is None")
+
+    logger.info(f"[PIPELINE] Starting create pipeline for: {waterfall_name}")
 
     # Step 1: Check for duplicates
-    emit_status_sync(user_id, "Checking for existing pages...", "step_start")
+    logger.info("[PIPELINE] Step 1: Checking for duplicates")
+    emit_status_sync("Checking for existing pages...", "step_start")
 
     duplicate = await check_for_duplicate(waterfall_name)
     if duplicate:
         msg = f"DUPLICATE_FOUND: '{duplicate['title']}' already exists (ID: {duplicate['id']})"
-        emit_status_sync(user_id, msg, "pipeline_stopped")
+        logger.info(f"[PIPELINE] Duplicate found, stopping: {msg}")
+        emit_status_sync(msg, "pipeline_stopped")
         return msg
 
-    emit_status_sync(user_id, "No duplicate found", "step_complete")
+    logger.info("[PIPELINE] Step 1 complete: No duplicate found")
+    emit_status_sync("No duplicate found", "step_complete")
 
     # Step 2: Research the waterfall
-    emit_status_sync(user_id, f"Researching {waterfall_name}...", "step_start")
+    logger.info("[PIPELINE] Step 2: Starting research")
+    emit_status_sync(f"Researching {waterfall_name}...", "step_start")
 
     try:
         research_text = await call_research_llm(
@@ -239,7 +265,7 @@ async def create_waterfall_page(
 
         if not research_text:
             msg = f"RESEARCH_FAILED: No response from research LLM for {waterfall_name}"
-            emit_status_sync(user_id, msg, "pipeline_error")
+            emit_status_sync(msg, "pipeline_error")
             return msg
 
         # Parse research result from JSON response
@@ -250,24 +276,26 @@ async def create_waterfall_page(
             logger.warning(f"Could not parse research as JSON: {parse_error}")
             logger.debug(f"Research text: {research_text[:500]}")
             msg = f"RESEARCH_FAILED: Research returned invalid format. Expected JSON but got: {research_text[:200]}..."
-            emit_status_sync(user_id, msg, "pipeline_error")
+            emit_status_sync(msg, "pipeline_error")
             return msg
 
         if not research.verified:
             msg = f"RESEARCH_FAILED: Could not verify '{waterfall_name}' exists. {research.verification_notes or ''}"
-            emit_status_sync(user_id, msg, "pipeline_stopped")
+            emit_status_sync(msg, "pipeline_stopped")
             return msg
 
-        emit_status_sync(user_id, "Research complete", "step_complete")
+        logger.info("[PIPELINE] Step 2 complete: Research successful")
+        emit_status_sync("Research complete", "step_complete")
 
     except Exception as e:
-        logger.error(f"Research failed: {e}")
+        logger.error(f"[PIPELINE] Step 2 failed: {e}")
         msg = f"RESEARCH_FAILED: Error researching {waterfall_name}: {e}"
-        emit_status_sync(user_id, msg, "pipeline_error")
+        emit_status_sync(msg, "pipeline_error")
         return msg
 
     # Step 3: Generate content with brand voice
-    emit_status_sync(user_id, "Writing engaging content...", "step_start")
+    logger.info("[PIPELINE] Step 3: Generating content")
+    emit_status_sync("Writing engaging content...", "step_start")
 
     try:
         content_text = await call_content_llm(
@@ -277,7 +305,7 @@ async def create_waterfall_page(
 
         if not content_text:
             msg = f"CONTENT_FAILED: No response from content LLM for {waterfall_name}"
-            emit_status_sync(user_id, msg, "pipeline_error")
+            emit_status_sync(msg, "pipeline_error")
             return msg
 
         # Parse content result from JSON response
@@ -287,25 +315,27 @@ async def create_waterfall_page(
             logger.error(f"Could not parse content as WaterfallPageDraft: {parse_error}")
             logger.debug(f"Content text: {content_text[:500]}")
             msg = f"CONTENT_FAILED: Invalid content format: {parse_error}"
-            emit_status_sync(user_id, msg, "pipeline_error")
+            emit_status_sync(msg, "pipeline_error")
             return msg
 
-        emit_status_sync(user_id, "Content ready", "step_complete")
+        logger.info("[PIPELINE] Step 3 complete: Content generated")
+        emit_status_sync("Content ready", "step_complete")
 
     except Exception as e:
-        logger.error(f"Content generation failed: {e}")
+        logger.error(f"[PIPELINE] Step 3 failed: {e}")
         msg = f"CONTENT_FAILED: Error generating content: {e}"
-        emit_status_sync(user_id, msg, "pipeline_error")
+        emit_status_sync(msg, "pipeline_error")
         return msg
 
     # Step 4: Create the page in CMS
-    emit_status_sync(user_id, "Creating page in CMS...", "step_start")
+    logger.info("[PIPELINE] Step 4: Creating page in CMS")
+    emit_status_sync("Creating page in CMS...", "step_start")
 
     try:
         mcp = get_mcp_client()
 
         # Find or create parent page
-        parent_id = await find_or_create_parent(parent_name, user_id)
+        parent_id = await find_or_create_parent(parent_name)
 
         # Convert draft to MCP tool format
         page_data = draft.to_mcp_dict(parent_id=parent_id)
@@ -323,14 +353,15 @@ async def create_waterfall_page(
             f"Included {block_count} content blocks."
         )
 
-        emit_status_sync(user_id, msg, "pipeline_complete")
-        logger.info(msg)
+        logger.info(f"[PIPELINE] Step 4 complete: Page created - {msg}")
+        emit_status_sync(msg, "pipeline_complete")
+        logger.info("[PIPELINE] ========== PIPELINE COMPLETED SUCCESSFULLY ==========")
         return msg
 
     except Exception as e:
-        logger.error(f"CMS creation failed: {e}")
+        logger.error(f"[PIPELINE] Step 4 failed: {e}")
         msg = f"CMS_ERROR: Failed to create page: {e}"
-        emit_status_sync(user_id, msg, "pipeline_error")
+        emit_status_sync(msg, "pipeline_error")
         return msg
 
 

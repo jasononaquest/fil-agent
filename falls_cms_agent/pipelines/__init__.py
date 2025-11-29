@@ -10,8 +10,8 @@ from .create_page import (
     create_waterfall_page,
 )
 from .management import (
-    delete_page,
-    delete_pipeline_tool,
+    create_category_page,
+    create_category_pipeline_tool,
     get_page_details,
     get_page_pipeline_tool,
     list_pages,
@@ -31,8 +31,8 @@ from .management import (
 # All pipeline tools for easy import
 ALL_PIPELINE_TOOLS = [
     create_pipeline_tool,
+    create_category_pipeline_tool,
     move_pipeline_tool,
-    delete_pipeline_tool,
     publish_pipeline_tool,
     unpublish_pipeline_tool,
     update_content_pipeline_tool,
@@ -42,14 +42,14 @@ ALL_PIPELINE_TOOLS = [
 ]
 
 __all__ = [
-    # Create pipeline
+    # Create pipelines
     "create_pipeline_tool",
     "create_waterfall_page",
+    "create_category_pipeline_tool",
+    "create_category_page",
     # Management pipelines
     "move_pipeline_tool",
     "move_page",
-    "delete_pipeline_tool",
-    "delete_page",
     "publish_pipeline_tool",
     "publish_page",
     "unpublish_pipeline_tool",
