@@ -12,7 +12,7 @@ from google.adk.tools import FunctionTool, ToolContext
 from google.genai import types
 
 from ..common.schemas import Category, ResearchResult, WaterfallPageDraft
-from ..core.callbacks import emit_status_sync
+from ..core.callbacks import emit_status
 from ..core.config import Config
 from ..core.context import set_user_id
 from ..core.logging import get_logger
@@ -146,7 +146,7 @@ async def find_or_create_parent(parent_name: str | None) -> tuple[int | None, st
             return existing.id, existing.title
 
         # Parent not found - create it
-        emit_status_sync(f"Creating category page '{category.title}'...", "step_start")
+        await emit_status(f"Creating category page '{category.title}'...", "step_start")
 
         created = await mcp.call_tool(
             "create_category_page",
@@ -156,10 +156,10 @@ async def find_or_create_parent(parent_name: str | None) -> tuple[int | None, st
 
         if parent_id:
             logger.info(f"Created parent page: {category.title} (ID: {parent_id})")
-            emit_status_sync(f"Created '{category.title}' (ID: {parent_id})", "step_complete")
+            await emit_status(f"Created '{category.title}' (ID: {parent_id})", "step_complete")
         else:
             logger.warning(f"Failed to create parent page: {category.title}")
-            emit_status_sync(f"Failed to create parent page '{category.title}'", "step_error")
+            await emit_status(f"Failed to create parent page '{category.title}'", "step_error")
 
         return parent_id, category.title
 
@@ -196,7 +196,7 @@ async def create_waterfall_page(
     logger.info(f"[PIPELINE] waterfall_name={waterfall_name}, parent_name={parent_name}")
     logger.info(f"[PIPELINE] tool_context type: {type(tool_context)}")
 
-    # Extract user_id from tool_context and set in ContextVar for emit_status_sync
+    # Extract user_id from tool_context and set in ContextVar for emit_status
     # ADK puts user_id directly on tool_context as an attribute (not in state!)
     user_id = None
 
@@ -218,21 +218,21 @@ async def create_waterfall_page(
 
     # Step 1: Check for duplicates
     logger.info("[PIPELINE] Step 1: Checking for duplicates")
-    emit_status_sync("Checking for existing pages...", "step_start")
+    await emit_status("Checking for existing pages...", "step_start")
 
     duplicate = await check_for_duplicate(waterfall_name)
     if duplicate:
         msg = f"DUPLICATE_FOUND: '{duplicate['title']}' already exists (ID: {duplicate['id']})"
         logger.info(f"[PIPELINE] Duplicate found, stopping: {msg}")
-        emit_status_sync(msg, "pipeline_stopped")
+        await emit_status(msg, "pipeline_stopped")
         return msg
 
     logger.info("[PIPELINE] Step 1 complete: No duplicate found")
-    emit_status_sync("No duplicate found", "step_complete")
+    await emit_status("No duplicate found", "step_complete")
 
     # Step 2: Research the waterfall
     logger.info("[PIPELINE] Step 2: Starting research")
-    emit_status_sync(f"Researching {waterfall_name}...", "step_start")
+    await emit_status(f"Researching {waterfall_name}...", "step_start")
 
     try:
         research_text = await call_research_llm(
@@ -242,7 +242,7 @@ async def create_waterfall_page(
 
         if not research_text:
             msg = f"RESEARCH_FAILED: No response from research LLM for {waterfall_name}"
-            emit_status_sync(msg, "pipeline_error")
+            await emit_status(msg, "pipeline_error")
             return msg
 
         # Parse research result from JSON response
@@ -253,26 +253,26 @@ async def create_waterfall_page(
             logger.warning(f"Could not parse research as JSON: {parse_error}")
             logger.debug(f"Research text: {research_text[:500]}")
             msg = f"RESEARCH_FAILED: Research returned invalid format. Expected JSON but got: {research_text[:200]}..."
-            emit_status_sync(msg, "pipeline_error")
+            await emit_status(msg, "pipeline_error")
             return msg
 
         if not research.verified:
             msg = f"RESEARCH_FAILED: Could not verify '{waterfall_name}' exists. {research.verification_notes or ''}"
-            emit_status_sync(msg, "pipeline_stopped")
+            await emit_status(msg, "pipeline_stopped")
             return msg
 
         logger.info("[PIPELINE] Step 2 complete: Research successful")
-        emit_status_sync("Research complete", "step_complete")
+        await emit_status("Research complete", "step_complete")
 
     except Exception as e:
         logger.error(f"[PIPELINE] Step 2 failed: {e}")
         msg = f"RESEARCH_FAILED: Error researching {waterfall_name}: {e}"
-        emit_status_sync(msg, "pipeline_error")
+        await emit_status(msg, "pipeline_error")
         return msg
 
     # Step 3: Generate content with brand voice
     logger.info("[PIPELINE] Step 3: Generating content")
-    emit_status_sync("Writing engaging content...", "step_start")
+    await emit_status("Writing engaging content...", "step_start")
 
     try:
         content_text = await call_content_llm(
@@ -282,7 +282,7 @@ async def create_waterfall_page(
 
         if not content_text:
             msg = f"CONTENT_FAILED: No response from content LLM for {waterfall_name}"
-            emit_status_sync(msg, "pipeline_error")
+            await emit_status(msg, "pipeline_error")
             return msg
 
         # Parse content result from JSON response
@@ -292,21 +292,21 @@ async def create_waterfall_page(
             logger.error(f"Could not parse content as WaterfallPageDraft: {parse_error}")
             logger.debug(f"Content text: {content_text[:500]}")
             msg = f"CONTENT_FAILED: Invalid content format: {parse_error}"
-            emit_status_sync(msg, "pipeline_error")
+            await emit_status(msg, "pipeline_error")
             return msg
 
         logger.info("[PIPELINE] Step 3 complete: Content generated")
-        emit_status_sync("Content ready", "step_complete")
+        await emit_status("Content ready", "step_complete")
 
     except Exception as e:
         logger.error(f"[PIPELINE] Step 3 failed: {e}")
         msg = f"CONTENT_FAILED: Error generating content: {e}"
-        emit_status_sync(msg, "pipeline_error")
+        await emit_status(msg, "pipeline_error")
         return msg
 
     # Step 4: Create the page in CMS
     logger.info("[PIPELINE] Step 4: Creating page in CMS")
-    emit_status_sync("Creating page in CMS...", "step_start")
+    await emit_status("Creating page in CMS...", "step_start")
 
     try:
         mcp = get_mcp_client()
@@ -332,14 +332,14 @@ async def create_waterfall_page(
         )
 
         logger.info(f"[PIPELINE] Step 4 complete: Page created - {msg}")
-        emit_status_sync(msg, "pipeline_complete")
+        await emit_status(msg, "pipeline_complete")
         logger.info("[PIPELINE] ========== PIPELINE COMPLETED SUCCESSFULLY ==========")
         return msg
 
     except Exception as e:
         logger.error(f"[PIPELINE] Step 4 failed: {e}")
         msg = f"CMS_ERROR: Failed to create page: {e}"
-        emit_status_sync(msg, "pipeline_error")
+        await emit_status(msg, "pipeline_error")
         return msg
 
 

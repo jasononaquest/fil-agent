@@ -10,7 +10,7 @@ from typing import Any
 from google.adk.tools import FunctionTool, ToolContext
 
 from ..common.schemas import Category, ContentBlock, PageListResult, PageSummary
-from ..core.callbacks import emit_status_sync
+from ..core.callbacks import emit_status
 from ..core.context import set_user_id
 from ..core.logging import get_logger
 from ..core.mcp_client import get_mcp_client
@@ -22,7 +22,7 @@ def _init_user_context(tool_context: ToolContext | None) -> None:
     """Extract user_id from ToolContext and set in ContextVar for event streaming.
 
     ADK injects ToolContext with user_id as a direct attribute.
-    We store it in a ContextVar so emit_status_sync() can access it.
+    We store it in a ContextVar so await emit_status() can access it.
     """
     if tool_context and hasattr(tool_context, "user_id") and tool_context.user_id:
         set_user_id(tool_context.user_id)
@@ -177,26 +177,26 @@ async def create_category_page(
     mcp = get_mcp_client()
 
     # Check if category already exists (strict match)
-    emit_status_sync(f"Checking if '{category.title}' exists...", "step_start")
+    await emit_status(f"Checking if '{category.title}' exists...", "step_start")
     existing = await find_category_by_name(category.title)
     if existing:
         return f"INFO: Category '{existing.title}' already exists (ID: {existing.id})"
-    emit_status_sync("Category doesn't exist yet", "step_complete")
+    await emit_status("Category doesn't exist yet", "step_complete")
 
     # Find parent if specified (strict match for parent categories)
     parent: Category | None = None
     if parent_name:
-        emit_status_sync(f"Finding parent '{parent_name}'...", "step_start")
+        await emit_status(f"Finding parent '{parent_name}'...", "step_start")
         parent = await find_category_by_name(parent_name)
         if not parent:
             # Normalize the parent name for the error message
             normalized_parent = Category(title=parent_name)
             return f"ERROR: Could not find parent category '{normalized_parent.title}'. Create it first."
         category.parent_id = parent.id
-        emit_status_sync(f"Found parent '{parent.title}' (ID: {parent.id})", "step_complete")
+        await emit_status(f"Found parent '{parent.title}' (ID: {parent.id})", "step_complete")
 
     # Create the category
-    emit_status_sync(f"Creating category '{category.title}'...", "step_start")
+    await emit_status(f"Creating category '{category.title}'...", "step_start")
     try:
         created = await mcp.call_tool("create_category_page", category.to_mcp_dict())
         category_id = created.get("id") if isinstance(created, dict) else None
@@ -204,16 +204,16 @@ async def create_category_page(
         if category_id:
             parent_info = f" under '{parent.title}'" if parent else ""
             msg = f"SUCCESS: Created category '{category.title}' (ID: {category_id}){parent_info}"
-            emit_status_sync(msg, "pipeline_complete")
+            await emit_status(msg, "pipeline_complete")
             return msg
         else:
             msg = f"ERROR: Failed to create category '{category.title}'"
-            emit_status_sync(msg, "pipeline_error")
+            await emit_status(msg, "pipeline_error")
             return msg
 
     except Exception as e:
         msg = f"ERROR: Failed to create category: {e}"
-        emit_status_sync(msg, "pipeline_error")
+        await emit_status(msg, "pipeline_error")
         return msg
 
 
@@ -247,27 +247,27 @@ async def move_page(
     mcp = get_mcp_client()
 
     # Find the page to move
-    emit_status_sync(f"Finding '{page_name}'...", "step_start")
+    await emit_status(f"Finding '{page_name}'...", "step_start")
     page = await find_page_by_name(page_name)
     if not page:
         return f"ERROR: Could not find page '{page_name}'"
 
     page_id = page["id"]
-    emit_status_sync(f"Found page (ID: {page_id})", "step_complete")
+    await emit_status(f"Found page (ID: {page_id})", "step_complete")
 
     # Find the new parent (strict match - must be exact category name)
     parent: Category | None = None
     if new_parent_name:
-        emit_status_sync(f"Finding parent '{new_parent_name}'...", "step_start")
+        await emit_status(f"Finding parent '{new_parent_name}'...", "step_start")
         parent = await find_category_by_name(new_parent_name)
         if not parent:
             # Normalize for clearer error message
             normalized = Category(title=new_parent_name)
             return f"ERROR: Could not find parent category '{normalized.title}'. Create it first with create_category_page."
-        emit_status_sync(f"Found parent '{parent.title}' (ID: {parent.id})", "step_complete")
+        await emit_status(f"Found parent '{parent.title}' (ID: {parent.id})", "step_complete")
 
     # Execute the move
-    emit_status_sync("Moving page...", "step_start")
+    await emit_status("Moving page...", "step_start")
     try:
         await mcp.call_tool(
             "move_page",
@@ -279,12 +279,12 @@ async def move_page(
 
         dest = f"under '{parent.title}'" if parent else "to root level"
         msg = f"SUCCESS: Moved '{page['title']}' {dest}"
-        emit_status_sync(msg, "pipeline_complete")
+        await emit_status(msg, "pipeline_complete")
         return msg
 
     except Exception as e:
         msg = f"ERROR: Failed to move page: {e}"
-        emit_status_sync(msg, "pipeline_error")
+        await emit_status(msg, "pipeline_error")
         return msg
 
 
@@ -317,14 +317,14 @@ async def run_publish_pipeline(
     mcp = get_mcp_client()
 
     # Find the page
-    emit_status_sync(f"Finding '{page_name}'...", "step_start")
+    await emit_status(f"Finding '{page_name}'...", "step_start")
     page = await find_page_by_name(page_name)
     if not page:
         return f"ERROR: Could not find page '{page_name}'"
 
     page_id = page["id"]
     page_title = page["title"]
-    emit_status_sync(f"Found '{page_title}' (ID: {page_id})", "step_complete")
+    await emit_status(f"Found '{page_title}' (ID: {page_id})", "step_complete")
 
     # Check current state
     is_published = page.get("published", False)
@@ -333,19 +333,19 @@ async def run_publish_pipeline(
         return f"INFO: '{page_title}' is already {state}"
 
     # Update publish state
-    emit_status_sync(f"{action}...", "step_start")
+    await emit_status(f"{action}...", "step_start")
     try:
         tool = "publish_page" if publish else "unpublish_page"
         await mcp.call_tool(tool, {"page_id": page_id})
 
         state = "published" if publish else "draft"
         msg = f"SUCCESS: '{page_title}' is now {state}"
-        emit_status_sync(msg, "pipeline_complete")
+        await emit_status(msg, "pipeline_complete")
         return msg
 
     except Exception as e:
         msg = f"ERROR: Failed to {action.lower()} page: {e}"
-        emit_status_sync(msg, "pipeline_error")
+        await emit_status(msg, "pipeline_error")
         return msg
 
 
@@ -403,21 +403,21 @@ async def rename_page(
         return "ERROR: New name cannot be empty"
 
     # Find the page to rename
-    emit_status_sync(f"Finding '{page_name}'...", "step_start")
+    await emit_status(f"Finding '{page_name}'...", "step_start")
     page = await find_page_by_name(page_name)
     if not page:
         return f"ERROR: Could not find page '{page_name}'"
 
     page_id = page["id"]
     old_title = page["title"]
-    emit_status_sync(f"Found '{old_title}' (ID: {page_id})", "step_complete")
+    await emit_status(f"Found '{old_title}' (ID: {page_id})", "step_complete")
 
     # Check if name is actually changing
     if old_title.lower() == new_name.lower():
         return f"INFO: Page is already named '{old_title}'"
 
     # Rename the page
-    emit_status_sync(f"Renaming to '{new_name}'...", "step_start")
+    await emit_status(f"Renaming to '{new_name}'...", "step_start")
     try:
         await mcp.call_tool(
             "update_page_metadata",
@@ -428,12 +428,12 @@ async def rename_page(
         )
 
         msg = f"SUCCESS: Renamed '{old_title}' to '{new_name}'"
-        emit_status_sync(msg, "pipeline_complete")
+        await emit_status(msg, "pipeline_complete")
         return msg
 
     except Exception as e:
         msg = f"ERROR: Failed to rename page: {e}"
-        emit_status_sync(msg, "pipeline_error")
+        await emit_status(msg, "pipeline_error")
         return msg
 
 
@@ -467,17 +467,17 @@ async def update_page_content(
     mcp = get_mcp_client()
 
     # Find the page
-    emit_status_sync(f"Finding '{page_name}'...", "step_start")
+    await emit_status(f"Finding '{page_name}'...", "step_start")
     page = await find_page_by_name(page_name)
     if not page:
         return f"ERROR: Could not find page '{page_name}'"
 
     page_id = page["id"]
     page_title = page["title"]
-    emit_status_sync(f"Found '{page_title}' (ID: {page_id})", "step_complete")
+    await emit_status(f"Found '{page_title}' (ID: {page_id})", "step_complete")
 
     # Update block
-    emit_status_sync(f"Updating block '{block_name}'...", "step_start")
+    await emit_status(f"Updating block '{block_name}'...", "step_start")
     try:
         # Validate block
         validated_block = ContentBlock(name=block_name, content=block_content).model_dump()
@@ -491,12 +491,12 @@ async def update_page_content(
         )
 
         msg = f"SUCCESS: Updated block '{block_name}' on '{page_title}'"
-        emit_status_sync(msg, "pipeline_complete")
+        await emit_status(msg, "pipeline_complete")
         return msg
 
     except Exception as e:
         msg = f"ERROR: Failed to update content: {e}"
-        emit_status_sync(msg, "pipeline_error")
+        await emit_status(msg, "pipeline_error")
         return msg
 
 
@@ -535,7 +535,7 @@ async def search_pages(
     )
     mcp = get_mcp_client()
 
-    emit_status_sync("Searching...", "step_start")
+    await emit_status("Searching...", "step_start")
 
     try:
         params: dict[str, Any] = {}
@@ -561,13 +561,13 @@ async def search_pages(
         raw_pages = await mcp.call_tool("list_pages", params)
 
         if not raw_pages:
-            emit_status_sync("No pages found", "pipeline_complete")
+            await emit_status("No pages found", "pipeline_complete")
             return PageListResult.create(pages=[], filter_applied=filter_applied).model_dump()
 
         # Parse into structured PageSummary objects
         pages = [PageSummary.from_api_dict(p) for p in raw_pages]
 
-        emit_status_sync(f"Found {len(pages)} pages", "pipeline_complete")
+        await emit_status(f"Found {len(pages)} pages", "pipeline_complete")
         return PageListResult.create(
             pages=pages,
             filter_applied=filter_applied,
@@ -575,7 +575,7 @@ async def search_pages(
 
     except Exception as e:
         msg = f"ERROR: Search failed: {e}"
-        emit_status_sync(msg, "pipeline_error")
+        await emit_status(msg, "pipeline_error")
         # Return empty result on error rather than raising
         return PageListResult.create(pages=[], filter_applied=f"error: {e}").model_dump()
 
@@ -630,7 +630,7 @@ async def get_page_details(
     logger.info(f"Getting details for '{page_name}'")
     mcp = get_mcp_client()
 
-    emit_status_sync(f"Finding '{page_name}'...", "step_start")
+    await emit_status(f"Finding '{page_name}'...", "step_start")
     page = await find_page_by_name(page_name)
     if not page:
         return f"ERROR: Could not find page '{page_name}'"
@@ -673,12 +673,12 @@ async def get_page_details(
                     lines.append(f"  - {block_name}: (empty)")
 
         msg = "\n".join(lines)
-        emit_status_sync("Details retrieved", "pipeline_complete")
+        await emit_status("Details retrieved", "pipeline_complete")
         return msg
 
     except Exception as e:
         msg = f"ERROR: Failed to get page details: {e}"
-        emit_status_sync(msg, "pipeline_error")
+        await emit_status(msg, "pipeline_error")
         return msg
 
 
