@@ -19,6 +19,19 @@ from .logging import get_logger
 logger = get_logger(__name__)
 
 
+class McpToolError(Exception):
+    """Raised when an MCP tool returns isError=True.
+
+    This indicates the tool executed but returned an error response,
+    such as validation failures, not found errors, etc.
+    """
+
+    def __init__(self, tool_name: str, message: str):
+        self.tool_name = tool_name
+        self.message = message
+        super().__init__(f"MCP tool '{tool_name}' failed: {message}")
+
+
 class McpClient:
     """Client for calling MCP tools programmatically.
 
@@ -66,7 +79,8 @@ class McpClient:
             Structured content (dict/list) from Pydantic models, or parsed JSON/text fallback
 
         Raises:
-            Exception: If tool execution fails
+            McpToolError: If tool execution fails (isError=True)
+            Exception: If connection or other errors occur
         """
         logger.info(f"Calling MCP tool: {tool_name} with args: {arguments}")
 
@@ -76,6 +90,17 @@ class McpClient:
             logger.info(
                 f"MCP result - isError: {result.isError}, has structuredContent: {result.structuredContent is not None}, content count: {len(result.content) if result.content else 0}"
             )
+
+            # Check for errors FIRST - this is critical!
+            if result.isError:
+                error_message = "MCP tool returned error"
+                # Extract error message from content if available
+                if result.content:
+                    content_block = result.content[0]
+                    if hasattr(content_block, "text"):
+                        error_message = content_block.text
+                logger.error(f"MCP tool {tool_name} failed: {error_message}")
+                raise McpToolError(tool_name, error_message)
 
             # Prefer structuredContent when available (FastMCP returns this for Pydantic models)
             # This is already a Python dict/list, ready to use

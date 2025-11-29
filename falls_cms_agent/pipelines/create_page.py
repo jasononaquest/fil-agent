@@ -16,7 +16,7 @@ from ..core.callbacks import emit_status
 from ..core.config import Config
 from ..core.context import set_user_id
 from ..core.logging import get_logger
-from ..core.mcp_client import get_mcp_client
+from ..core.mcp_client import McpToolError, get_mcp_client
 from ..core.prompts import load_prompt
 from .management import find_category_by_name
 
@@ -324,6 +324,13 @@ async def create_waterfall_page(
         page_title = created.get("title", draft.title) if isinstance(created, dict) else draft.title
         block_count = len(draft.blocks)
 
+        # Verify we actually got a page ID back
+        if page_id is None:
+            msg = f"CMS_ERROR: Page creation returned no ID. Response: {created}"
+            logger.error(f"[PIPELINE] {msg}")
+            await emit_status(msg, "pipeline_error")
+            return msg
+
         # Use normalized parent title in message
         parent_info = f"under '{parent_title}'" if parent_title else "at root level"
         msg = (
@@ -334,6 +341,13 @@ async def create_waterfall_page(
         logger.info(f"[PIPELINE] Step 4 complete: Page created - {msg}")
         await emit_status(msg, "pipeline_complete")
         logger.info("[PIPELINE] ========== PIPELINE COMPLETED SUCCESSFULLY ==========")
+        return msg
+
+    except McpToolError as e:
+        # MCP tool returned an error (e.g., validation failure)
+        logger.error(f"[PIPELINE] Step 4 failed - MCP error: {e.message}")
+        msg = f"CMS_ERROR: {e.message}"
+        await emit_status(msg, "pipeline_error")
         return msg
 
     except Exception as e:
