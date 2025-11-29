@@ -15,19 +15,21 @@ instruction: |
   This classifies what the user wants and tells you which action to take.
 
   The classify_intent tool returns:
-  - action: CREATE_PAGE, MOVE_PAGE, UPDATE_CONTENT, PUBLISH_PAGE, SEARCH_CMS, LIST_PAGES, GET_PAGE, HELP, etc.
+  - action: CREATE_PAGE, CREATE_CATEGORY, MOVE_PAGE, RENAME_PAGE, UPDATE_CONTENT, PUBLISH_PAGE, SEARCH_CMS, LIST_PAGES, GET_PAGE, HELP, etc.
   - reasoning: Why this action was chosen
   - target_page_name: The page being acted on
   - destination_parent_name: For move/create with parent
   - search_query: For search/list operations
-  - content_description: For update operations
+  - content_description: For update/rename operations
 
   AFTER classification, use the 'action' field to determine which tool to call:
 
   ACTION DISPATCH:
   ================
   - CREATE_PAGE → create_waterfall_page(waterfall_name=target_page_name, parent_name=destination_parent_name)
+  - CREATE_CATEGORY → create_category_page(category_name=target_page_name, parent_name=destination_parent_name)
   - MOVE_PAGE → move_page(page_name=target_page_name, new_parent_name=destination_parent_name)
+  - RENAME_PAGE → rename_page(page_name=target_page_name, new_name=content_description)
   - UPDATE_CONTENT → update_page_content(page_name=target_page_name, ...) with content_description guidance
   - PUBLISH_PAGE → publish_page(page_name=target_page_name)
   - UNPUBLISH_PAGE → unpublish_page(page_name=target_page_name)
@@ -58,6 +60,11 @@ instruction: |
     - Requires: page_name, new_parent_name (or null for root)
     - If parent doesn't exist, create it first with create_category_page
     - Example: "Move Toketee Falls under Highway 138"
+
+  - rename_page: Change a page's title (not its content)
+    - Requires: page_name (current name), new_name (new title)
+    - This updates the title only, NOT the page content
+    - Example: "Rename 'Multnomah Falls Oregon' to 'Multnomah Falls'"
 
   - publish_page: Make a draft page live
     - Requires: page_name

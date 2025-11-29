@@ -29,16 +29,17 @@ class TestAgentConfiguration:
     """Test agent configuration values."""
 
     def test_root_agent_has_tools(self):
-        """Root agent should have 10 pipeline tools including router (no delete)."""
+        """Root agent should have 11 pipeline tools including router (no delete)."""
         from falls_cms_agent.agent import root_agent
 
-        assert len(root_agent.tools) == 10
+        assert len(root_agent.tools) == 11
         tool_names = [t.func.__name__ for t in root_agent.tools]
         expected = [
             "classify_intent",  # Router - always called first
             "create_waterfall_page",
             "create_category_page",
             "move_page",
+            "rename_page",
             "publish_page",
             "unpublish_page",
             "update_page_content",
@@ -160,6 +161,53 @@ class TestSchemas:
         assert result.gps_latitude == 45.5762
         assert len(result.sources) == 1
 
+    def test_category_normalizes_name(self):
+        """Category model should auto-normalize names to title case."""
+        from falls_cms_agent.common.schemas import Category
+
+        # Test basic normalization
+        cat1 = Category(title="costa rica")
+        assert cat1.title == "Costa Rica"
+
+        # Test with lowercase words
+        cat2 = Category(title="columbia river gorge")
+        assert cat2.title == "Columbia River Gorge"
+
+        # Test already normalized stays the same
+        cat3 = Category(title="Oregon")
+        assert cat3.title == "Oregon"
+
+        # Test with lowercase words in middle
+        cat4 = Category(title="state of washington")
+        assert cat4.title == "State of Washington"
+
+    def test_category_from_api_response(self):
+        """Category.from_api_response should create a Category with id."""
+        from falls_cms_agent.common.schemas import Category
+
+        api_data = {
+            "id": 42,
+            "title": "costa rica",  # lowercase from API
+            "slug": "costa-rica",
+            "parent_id": None,
+        }
+
+        cat = Category.from_api_response(api_data)
+        assert cat.id == 42
+        assert cat.title == "Costa Rica"  # Normalized
+        assert cat.slug == "costa-rica"
+        assert cat.exists is True
+
+    def test_category_to_mcp_dict(self):
+        """Category.to_mcp_dict should produce correct format."""
+        from falls_cms_agent.common.schemas import Category
+
+        cat = Category(title="southern oregon", parent_id=10)
+        mcp_dict = cat.to_mcp_dict()
+
+        assert mcp_dict["title"] == "Southern Oregon"
+        assert mcp_dict["parent_id"] == 10
+
 
 class TestPipelineTools:
     """Test pipeline function tools."""
@@ -187,6 +235,7 @@ class TestPipelineTools:
             list_pipeline_tool,
             move_pipeline_tool,
             publish_pipeline_tool,
+            rename_pipeline_tool,
             search_pipeline_tool,
             unpublish_pipeline_tool,
             update_content_pipeline_tool,
@@ -194,6 +243,7 @@ class TestPipelineTools:
 
         tools = [
             move_pipeline_tool,
+            rename_pipeline_tool,
             publish_pipeline_tool,
             unpublish_pipeline_tool,
             update_content_pipeline_tool,
@@ -202,7 +252,7 @@ class TestPipelineTools:
             get_page_pipeline_tool,
         ]
 
-        assert len(tools) == 7
+        assert len(tools) == 8
         for tool in tools:
             assert tool.func is not None
 

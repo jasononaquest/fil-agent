@@ -9,7 +9,7 @@ from typing import Any
 
 from google.adk.tools import FunctionTool, ToolContext
 
-from ..common.schemas import ContentBlock, PageListResult, PageSummary
+from ..common.schemas import Category, ContentBlock, PageListResult, PageSummary
 from ..core.callbacks import emit_status_sync
 from ..core.context import set_user_id
 from ..core.logging import get_logger
@@ -29,43 +29,117 @@ def _init_user_context(tool_context: ToolContext | None) -> None:
         logger.debug(f"Set user_id={tool_context.user_id} from ToolContext")
 
 
-async def find_page_by_name(page_name: str) -> dict | None:
-    """Find a page by name or slug.
+async def _search_pages_by_name(page_name: str) -> tuple[list, str]:
+    """Search for pages matching a name. Shared helper for find functions.
 
-    Searches for pages matching the input, trying:
-    1. Exact title match (case-insensitive)
-    2. Exact slug match (for inputs like "butte-falls-oregon")
-    3. First search result if no exact match
+    Args:
+        page_name: Name/title or slug to search for
+
+    Returns:
+        Tuple of (list of matching pages, lowercased search term)
+    """
+    mcp = get_mcp_client()
+    pages = await mcp.call_tool("list_pages", {"search": page_name})
+    return (pages if isinstance(pages, list) else [], page_name.lower())
+
+
+def _find_exact_match(pages: list, search_lower: str) -> dict | None:
+    """Find exact title or slug match from a list of pages.
+
+    Args:
+        pages: List of page dicts from API
+        search_lower: Lowercased search term
+
+    Returns:
+        Page dict if exact match found, None otherwise
+    """
+    # Try exact title match first
+    for page in pages:
+        if page.get("title", "").lower() == search_lower:
+            return page
+
+    # Try exact slug match (for inputs like "butte-falls-oregon-1")
+    for page in pages:
+        if page.get("slug", "").lower() == search_lower:
+            return page
+
+    return None
+
+
+async def find_page_by_name(page_name: str) -> dict | None:
+    """Find a page by name or slug, with fuzzy fallback.
+
+    Use this when looking for a waterfall/content page to operate on.
+    Tries exact match first, falls back to first search result.
+
+    This is helpful when users use shorthand names like "La Fortuna"
+    for a page titled "La Fortuna, Costa Rica".
 
     Args:
         page_name: Name/title or slug of the page to find
 
     Returns:
-        Page dict if found, None otherwise
+        Page dict if found (exact or fuzzy), None if no results
     """
     try:
-        mcp = get_mcp_client()
-        pages = await mcp.call_tool("list_pages", {"search": page_name})
+        pages, search_lower = await _search_pages_by_name(page_name)
 
-        if isinstance(pages, list):
-            search_lower = page_name.lower()
+        if not pages:
+            return None
 
-            # Try exact title match first
-            for page in pages:
-                if page.get("title", "").lower() == search_lower:
-                    return page
+        # Try exact match first
+        exact = _find_exact_match(pages, search_lower)
+        if exact:
+            return exact
 
-            # Try exact slug match (for inputs like "butte-falls-oregon-1")
-            for page in pages:
-                if page.get("slug", "").lower() == search_lower:
-                    return page
+        # Fall back to first result (fuzzy match)
+        logger.debug(
+            f"No exact match for '{page_name}', using first result: '{pages[0].get('title')}'"
+        )
+        return pages[0]
 
-            # Return first result if no exact match
-            if pages:
-                return pages[0]
-        return None
     except Exception as e:
         logger.warning(f"Error finding page '{page_name}': {e}")
+        return None
+
+
+async def find_category_by_name(category_name: str) -> Category | None:
+    """Find a category by exact name or slug match only.
+
+    Use this when looking for a category/parent page. Does NOT return
+    partial matches - this prevents confusion between "Costa Rica" (category)
+    and "La Fortuna, Costa Rica" (waterfall page).
+
+    The input is normalized before searching, so "costa rica" will find "Costa Rica".
+
+    Args:
+        category_name: Name/title or slug of the category (will be normalized)
+
+    Returns:
+        Category object if exact match found, None otherwise
+    """
+    try:
+        # Normalize the search term first
+        normalized = Category(title=category_name)
+        pages, search_lower = await _search_pages_by_name(normalized.title)
+
+        if not pages:
+            return None
+
+        # Only return exact matches
+        exact = _find_exact_match(pages, search_lower)
+        if exact:
+            return Category.from_api_response(exact)
+
+        # Log similar pages for debugging but don't return them
+        logger.debug(
+            f"No exact category match for '{normalized.title}'. "
+            f"Similar pages: {[p.get('title') for p in pages[:3]]}"
+        )
+        return None
+
+    except Exception as e:
+        logger.warning(f"Error finding category '{category_name}': {e}")
         return None
 
 
@@ -85,6 +159,8 @@ async def create_category_page(
     no trail info). Use this for geographic regions like "Oregon", "Washington",
     or sub-regions like "Columbia River Gorge".
 
+    The category name is automatically normalized (e.g., "costa rica" -> "Costa Rica").
+
     Args:
         category_name: Name of the category (e.g., "Oregon", "Mount Rainier")
         parent_name: Optional parent category to nest under
@@ -94,43 +170,44 @@ async def create_category_page(
         Status message with the created category ID
     """
     _init_user_context(tool_context)
-    logger.info(f"Creating category '{category_name}'")
+
+    # Create Category model - this normalizes the name automatically
+    category = Category(title=category_name)
+    logger.info(f"Creating category '{category.title}' (input was '{category_name}')")
     mcp = get_mcp_client()
 
-    # Check if category already exists
-    emit_status_sync(f"Checking if '{category_name}' exists...", "step_start")
-    existing = await find_page_by_name(category_name)
+    # Check if category already exists (strict match)
+    emit_status_sync(f"Checking if '{category.title}' exists...", "step_start")
+    existing = await find_category_by_name(category.title)
     if existing:
-        return f"INFO: Category '{category_name}' already exists (ID: {existing['id']})"
+        return f"INFO: Category '{existing.title}' already exists (ID: {existing.id})"
     emit_status_sync("Category doesn't exist yet", "step_complete")
 
-    # Find parent if specified
-    parent_id = None
+    # Find parent if specified (strict match for parent categories)
+    parent: Category | None = None
     if parent_name:
         emit_status_sync(f"Finding parent '{parent_name}'...", "step_start")
-        parent = await find_page_by_name(parent_name)
+        parent = await find_category_by_name(parent_name)
         if not parent:
-            return f"ERROR: Could not find parent '{parent_name}'"
-        parent_id = parent["id"]
-        emit_status_sync(f"Found parent (ID: {parent_id})", "step_complete")
+            # Normalize the parent name for the error message
+            normalized_parent = Category(title=parent_name)
+            return f"ERROR: Could not find parent category '{normalized_parent.title}'. Create it first."
+        category.parent_id = parent.id
+        emit_status_sync(f"Found parent '{parent.title}' (ID: {parent.id})", "step_complete")
 
     # Create the category
-    emit_status_sync(f"Creating category '{category_name}'...", "step_start")
+    emit_status_sync(f"Creating category '{category.title}'...", "step_start")
     try:
-        params = {"title": category_name}
-        if parent_id:
-            params["parent_id"] = parent_id
-
-        created = await mcp.call_tool("create_category_page", params)
+        created = await mcp.call_tool("create_category_page", category.to_mcp_dict())
         category_id = created.get("id") if isinstance(created, dict) else None
 
         if category_id:
-            parent_info = f" under '{parent_name}'" if parent_name else ""
-            msg = f"SUCCESS: Created category '{category_name}' (ID: {category_id}){parent_info}"
+            parent_info = f" under '{parent.title}'" if parent else ""
+            msg = f"SUCCESS: Created category '{category.title}' (ID: {category_id}){parent_info}"
             emit_status_sync(msg, "pipeline_complete")
             return msg
         else:
-            msg = f"ERROR: Failed to create category '{category_name}'"
+            msg = f"ERROR: Failed to create category '{category.title}'"
             emit_status_sync(msg, "pipeline_error")
             return msg
 
@@ -178,15 +255,16 @@ async def move_page(
     page_id = page["id"]
     emit_status_sync(f"Found page (ID: {page_id})", "step_complete")
 
-    # Find the new parent
-    new_parent_id = None
+    # Find the new parent (strict match - must be exact category name)
+    parent: Category | None = None
     if new_parent_name:
         emit_status_sync(f"Finding parent '{new_parent_name}'...", "step_start")
-        parent = await find_page_by_name(new_parent_name)
+        parent = await find_category_by_name(new_parent_name)
         if not parent:
-            return f"ERROR: Could not find parent page '{new_parent_name}'. Create it first with create_category_page."
-        new_parent_id = parent["id"]
-        emit_status_sync(f"Found parent (ID: {new_parent_id})", "step_complete")
+            # Normalize for clearer error message
+            normalized = Category(title=new_parent_name)
+            return f"ERROR: Could not find parent category '{normalized.title}'. Create it first with create_category_page."
+        emit_status_sync(f"Found parent '{parent.title}' (ID: {parent.id})", "step_complete")
 
     # Execute the move
     emit_status_sync("Moving page...", "step_start")
@@ -195,11 +273,11 @@ async def move_page(
             "move_page",
             {
                 "page_id": page_id,
-                "new_parent_id": new_parent_id,
+                "new_parent_id": parent.id if parent else None,
             },
         )
 
-        dest = f"under '{new_parent_name}'" if new_parent_name else "to root level"
+        dest = f"under '{parent.title}'" if parent else "to root level"
         msg = f"SUCCESS: Moved '{page['title']}' {dest}"
         emit_status_sync(msg, "pipeline_complete")
         return msg
@@ -290,6 +368,76 @@ async def unpublish_page(
 publish_pipeline_tool = FunctionTool(func=publish_page)
 
 unpublish_pipeline_tool = FunctionTool(func=unpublish_page)
+
+
+# =============================================================================
+# Rename Page Pipeline
+# =============================================================================
+
+
+async def rename_page(
+    page_name: str,
+    new_name: str,
+    tool_context: ToolContext | None = None,
+) -> str:
+    """Rename a page by changing its title.
+
+    This updates only the title (and optionally regenerates the slug).
+    It does NOT change the page content - use update_page_content for that.
+
+    Args:
+        page_name: Current name of the page to rename
+        new_name: New title for the page
+        tool_context: Injected by ADK - contains user_id for event streaming
+
+    Returns:
+        Status message
+    """
+    _init_user_context(tool_context)
+    logger.info(f"Renaming page '{page_name}' to '{new_name}'")
+    mcp = get_mcp_client()
+
+    # Validate new name isn't empty
+    new_name = new_name.strip()
+    if not new_name:
+        return "ERROR: New name cannot be empty"
+
+    # Find the page to rename
+    emit_status_sync(f"Finding '{page_name}'...", "step_start")
+    page = await find_page_by_name(page_name)
+    if not page:
+        return f"ERROR: Could not find page '{page_name}'"
+
+    page_id = page["id"]
+    old_title = page["title"]
+    emit_status_sync(f"Found '{old_title}' (ID: {page_id})", "step_complete")
+
+    # Check if name is actually changing
+    if old_title.lower() == new_name.lower():
+        return f"INFO: Page is already named '{old_title}'"
+
+    # Rename the page
+    emit_status_sync(f"Renaming to '{new_name}'...", "step_start")
+    try:
+        await mcp.call_tool(
+            "update_page_metadata",
+            {
+                "page_id": page_id,
+                "title": new_name,
+            },
+        )
+
+        msg = f"SUCCESS: Renamed '{old_title}' to '{new_name}'"
+        emit_status_sync(msg, "pipeline_complete")
+        return msg
+
+    except Exception as e:
+        msg = f"ERROR: Failed to rename page: {e}"
+        emit_status_sync(msg, "pipeline_error")
+        return msg
+
+
+rename_pipeline_tool = FunctionTool(func=rename_page)
 
 
 # =============================================================================
@@ -539,7 +687,9 @@ get_page_pipeline_tool = FunctionTool(func=get_page_details)
 
 # Export all tools
 __all__ = [
+    "create_category_pipeline_tool",
     "move_pipeline_tool",
+    "rename_pipeline_tool",
     "publish_pipeline_tool",
     "unpublish_pipeline_tool",
     "update_content_pipeline_tool",
@@ -547,4 +697,5 @@ __all__ = [
     "list_pipeline_tool",
     "get_page_pipeline_tool",
     "find_page_by_name",
+    "find_category_by_name",
 ]

@@ -11,13 +11,14 @@ from google import genai
 from google.adk.tools import FunctionTool, ToolContext
 from google.genai import types
 
-from ..common.schemas import ResearchResult, WaterfallPageDraft
+from ..common.schemas import Category, ResearchResult, WaterfallPageDraft
 from ..core.callbacks import emit_status_sync
 from ..core.config import Config
 from ..core.context import set_user_id
 from ..core.logging import get_logger
 from ..core.mcp_client import get_mcp_client
 from ..core.prompts import load_prompt
+from .management import find_category_by_name
 
 logger = get_logger(__name__)
 
@@ -116,79 +117,55 @@ async def check_for_duplicate(waterfall_name: str) -> dict | None:
         return None
 
 
-def _normalize_category_name(name: str) -> str:
-    """Normalize category name to title case for proper nouns.
-
-    Handles common geographic naming conventions:
-    - "southern oregon" -> "Southern Oregon"
-    - "columbia river gorge" -> "Columbia River Gorge"
-    - "highway 138" -> "Highway 138"
-    """
-    # Title case the name
-    normalized = name.strip().title()
-
-    # Handle common lowercase words that should stay lowercase in titles
-    # (unless they're the first word)
-    lowercase_words = {"of", "the", "and", "in", "at", "to", "for", "on"}
-    words = normalized.split()
-    result = [words[0]]  # Keep first word as-is (title case)
-    for word in words[1:]:
-        if word.lower() in lowercase_words:
-            result.append(word.lower())
-        else:
-            result.append(word)
-
-    return " ".join(result)
-
-
-async def find_or_create_parent(parent_name: str | None) -> int | None:
+async def find_or_create_parent(parent_name: str | None) -> tuple[int | None, str | None]:
     """Find existing parent page or create a new category page.
 
+    Uses strict matching via find_category_by_name to avoid confusing
+    "Costa Rica" (category) with "La Fortuna, Costa Rica" (waterfall).
+
+    The parent name is automatically normalized via Category model.
+
     Args:
-        parent_name: Name of the parent/category (e.g., "Oregon")
+        parent_name: Name of the parent/category (e.g., "Oregon", "costa rica")
 
     Returns:
-        Parent page ID, or None if no parent specified
+        Tuple of (parent_id, normalized_title) or (None, None) if no parent
     """
     if not parent_name:
-        return None
+        return None, None
 
-    # Normalize the category name (e.g., "southern oregon" -> "Southern Oregon")
-    parent_name = _normalize_category_name(parent_name)
-
+    # Create Category to normalize the name
+    category = Category(title=parent_name)
     mcp = get_mcp_client()
 
-    # Search for existing parent
+    # Search for existing parent using strict matching
     try:
-        pages = await mcp.call_tool("list_pages", {"search": parent_name})
-
-        if isinstance(pages, list):
-            for page in pages:
-                if page.get("title", "").lower() == parent_name.lower():
-                    logger.info(f"Found existing parent: {page['title']} (ID: {page['id']})")
-                    return page["id"]
+        existing = await find_category_by_name(category.title)
+        if existing:
+            logger.info(f"Found existing parent: {existing.title} (ID: {existing.id})")
+            return existing.id, existing.title
 
         # Parent not found - create it
-        emit_status_sync(f"Creating category page '{parent_name}'...", "step_start")
+        emit_status_sync(f"Creating category page '{category.title}'...", "step_start")
 
         created = await mcp.call_tool(
             "create_category_page",
-            {"title": parent_name},
+            category.to_mcp_dict(),
         )
         parent_id = created.get("id") if isinstance(created, dict) else None
 
         if parent_id:
-            logger.info(f"Created parent page: {parent_name} (ID: {parent_id})")
-            emit_status_sync(f"Created '{parent_name}' (ID: {parent_id})", "step_complete")
+            logger.info(f"Created parent page: {category.title} (ID: {parent_id})")
+            emit_status_sync(f"Created '{category.title}' (ID: {parent_id})", "step_complete")
         else:
-            logger.warning(f"Failed to create parent page: {parent_name}")
-            emit_status_sync(f"Failed to create parent page '{parent_name}'", "step_error")
+            logger.warning(f"Failed to create parent page: {category.title}")
+            emit_status_sync(f"Failed to create parent page '{category.title}'", "step_error")
 
-        return parent_id
+        return parent_id, category.title
 
     except Exception as e:
         logger.warning(f"Error finding/creating parent: {e}")
-        return None
+        return None, None
 
 
 async def create_waterfall_page(
@@ -334,8 +311,8 @@ async def create_waterfall_page(
     try:
         mcp = get_mcp_client()
 
-        # Find or create parent page
-        parent_id = await find_or_create_parent(parent_name)
+        # Find or create parent page (returns normalized title)
+        parent_id, parent_title = await find_or_create_parent(parent_name)
 
         # Convert draft to MCP tool format
         page_data = draft.to_mcp_dict(parent_id=parent_id)
@@ -347,7 +324,8 @@ async def create_waterfall_page(
         page_title = created.get("title", draft.title) if isinstance(created, dict) else draft.title
         block_count = len(draft.blocks)
 
-        parent_info = f"under '{parent_name}'" if parent_name else "at root level"
+        # Use normalized parent title in message
+        parent_info = f"under '{parent_title}'" if parent_title else "at root level"
         msg = (
             f"SUCCESS: Created '{page_title}' (ID: {page_id}) as draft {parent_info}. "
             f"Included {block_count} content blocks."

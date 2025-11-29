@@ -10,7 +10,44 @@ Keep these in sync across all services!
 
 from enum import Enum
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+# =============================================================================
+# Utility Functions
+# =============================================================================
+
+
+def normalize_category_name(name: str) -> str:
+    """Normalize category name to title case for proper nouns.
+
+    Handles common geographic naming conventions:
+    - "southern oregon" -> "Southern Oregon"
+    - "columbia river gorge" -> "Columbia River Gorge"
+    - "highway 138" -> "Highway 138"
+    - "costa rica" -> "Costa Rica"
+    """
+    if not name:
+        return name
+
+    # Title case the name
+    normalized = name.strip().title()
+
+    # Handle common lowercase words that should stay lowercase in titles
+    # (unless they're the first word)
+    lowercase_words = {"of", "the", "and", "in", "at", "to", "for", "on"}
+    words = normalized.split()
+    if not words:
+        return normalized
+
+    result = [words[0]]  # Keep first word as-is (title case)
+    for word in words[1:]:
+        if word.lower() in lowercase_words:
+            result.append(word.lower())
+        else:
+            result.append(word)
+
+    return " ".join(result)
+
 
 # =============================================================================
 # Enums - Strict values that match Rails validations
@@ -21,7 +58,9 @@ class IntentAction(str, Enum):
     """Actions the router can classify user requests into."""
 
     CREATE_PAGE = "CREATE_PAGE"
+    CREATE_CATEGORY = "CREATE_CATEGORY"
     MOVE_PAGE = "MOVE_PAGE"
+    RENAME_PAGE = "RENAME_PAGE"
     UPDATE_CONTENT = "UPDATE_CONTENT"
     UPDATE_METADATA = "UPDATE_METADATA"
     PUBLISH_PAGE = "PUBLISH_PAGE"
@@ -179,12 +218,40 @@ class WaterfallPageDraft(BaseModel):
         return data
 
 
-class CategoryPageDraft(BaseModel):
-    """Simple draft for creating a category/parent page."""
+class Category(BaseModel):
+    """A category for organizing waterfall pages.
+
+    Title is automatically normalized (costa rica -> Costa Rica).
+    Can represent both existing (has id) and new categories.
+
+    This is a deterministic model - the LLM extracts the raw name,
+    and the validator ensures proper formatting regardless of input.
+    """
 
     title: str = Field(description="Category title (e.g., 'Oregon', 'Columbia River Gorge')")
     slug: str | None = Field(default=None, description="URL slug")
     parent_id: int | None = Field(default=None, description="Parent page ID for nesting")
+    id: int | None = Field(default=None, description="Set if category already exists in CMS")
+
+    @field_validator("title", mode="before")
+    @classmethod
+    def normalize_title(cls, v: str) -> str:
+        """Auto-normalize category names to proper title case."""
+        return normalize_category_name(v)
+
+    @property
+    def exists(self) -> bool:
+        """Whether this category already exists in CMS."""
+        return self.id is not None
+
+    def to_mcp_dict(self) -> dict:
+        """Convert to MCP create_category_page format."""
+        data = {"title": self.title}
+        if self.slug:
+            data["slug"] = self.slug
+        if self.parent_id is not None:
+            data["parent_id"] = self.parent_id
+        return data
 
     def to_api_dict(self) -> dict:
         """Convert to Rails API format."""
@@ -198,6 +265,20 @@ class CategoryPageDraft(BaseModel):
         if self.parent_id is not None:
             data["parent_id"] = self.parent_id
         return data
+
+    @classmethod
+    def from_api_response(cls, data: dict) -> "Category":
+        """Create from CMS API response (existing category)."""
+        return cls(
+            id=data["id"],
+            title=data["title"],  # Will be normalized by validator
+            slug=data.get("slug"),
+            parent_id=data.get("parent_id"),
+        )
+
+
+# Alias for backwards compatibility
+CategoryPageDraft = Category
 
 
 class PageMetadataUpdate(BaseModel):
