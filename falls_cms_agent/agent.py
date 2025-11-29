@@ -2,102 +2,83 @@
 
 This file defines root_agent which is the entry point for ADK.
 The agent can be run with: adk web or adk run falls_cms_agent
+
+Architecture:
+- root_agent is an LlmAgent with pipeline tools attached
+- Each pipeline tool is a FunctionTool that orchestrates sub-agents
+- This gives us deterministic control flow (Python code) while staying ADK-compatible
+- before_agent_callback captures user_id into ContextVar for event streaming
 """
 
 from google.adk.agents import LlmAgent
-from google.adk.tools import AgentTool
 
-from .agents.cms import cms_agent
-from .agents.content import content_agent
-from .agents.research import research_agent
-from .config import Config
-from .pipelines.create_page import check_existing_agent, create_in_cms_agent
+from .core.config import Config
+from .core.context import set_user_id
+from .core.logging import get_logger, setup_logging
+from .core.prompts import load_prompt
+from .pipelines import ALL_PIPELINE_TOOLS
 
-# Coordinator instruction - the main orchestrator
-COORDINATOR_INSTRUCTION = """You are the content assistant for Falls Into Love, a waterfall
-photography and hiking blog. You help create and manage content through natural conversation.
+# Set up logging
+setup_logging()
 
-CAPABILITIES:
-1. CREATE waterfall/hiking pages with full research and engaging content
-2. UPDATE existing pages with new information or corrections
-3. SEARCH and LIST pages in the CMS
-4. ANSWER questions about what's in the CMS
-
-UNDERSTANDING USER REQUESTS:
-
-For page creation requests like:
-- "Create a page for Multnomah Falls"
-- "Add Latourell Falls to Oregon"
-- "Write about Horsetail Falls in the Columbia River Gorge"
-
-→ You MUST call these tools IN ORDER:
-  1. check_existing - Check for duplicate pages and identify parent page
-  2. research_agent - Research the waterfall (GPS, trail info, facts)
-  3. content_agent - Write engaging content using the research
-  4. create_in_cms - Create the page in the CMS with the content
-
-→ IMPORTANT: Do NOT skip steps! Each step depends on the previous step's output.
-
-For search/list requests like:
-- "What pages do we have for Oregon?"
-- "Show me all waterfalls"
-- "Is there a page for Multnomah Falls?"
-
-→ Use the cms_agent tool directly
-
-For update requests like:
-- "Update the Multnomah Falls page to mention the trail closure"
-- "Change the difficulty to Moderate"
-
-→ Use the cms_agent tool
-
-HANDLING PIPELINE RESULTS:
-Watch for these signals during page creation:
-
-1. "DUPLICATE_FOUND: [title] (ID: [id])"
-   → STOP the pipeline! Tell user: "I found an existing page for [name]. Update it instead?"
-
-2. "RESEARCH_FAILED: Could not verify [name]"
-   → STOP the pipeline! Tell user: "I couldn't verify [name] is a real waterfall."
-
-3. "PIPELINE_STOP: [reason]"
-   → STOP the pipeline! Tell the user the reason.
-
-When a stop signal is found, DO NOT call subsequent tools.
-
-HANDLING MULTIPLE REQUESTS:
-For requests like "Add Latourell Falls, Horsetail Falls, and Wahkeena Falls to Oregon":
-- Process each waterfall sequentially (all 4 steps for each)
-- Report progress after each: "Created Latourell Falls... now working on Horsetail Falls..."
-- Summarize at the end: "Created 3 pages under Oregon: [list]"
-
-EXECUTION STYLE:
-- DO NOT ask for confirmation before starting. Execute the pipeline immediately.
-- DO NOT explain what you're going to do first. Just start doing it.
-- Call each tool in sequence, waiting for each to complete before calling the next.
-- Only communicate results AFTER each step completes or when there's an error/stop signal.
-
-COMMUNICATION STYLE:
-- Be concise - avoid lengthy explanations
-- Report results after actions complete, not before
-- If something goes wrong, explain what happened and suggest alternatives
-"""
+logger = get_logger(__name__)
 
 
-# Define the root agent - the main entry point
-# Each sub-agent is exposed as a tool so we get individual function_call events
+def capture_user_context(callback_context) -> None:
+    """Capture user_id from ADK context and store in ContextVar.
+
+    This runs at the start of each request, before the LLM processes it.
+    The user_id is then available to emit_status_sync() via get_user_id().
+
+    ADK passes input parameters in different places depending on the context:
+    - callback_context.state: Session state (if sessions are used)
+    - callback_context.session.state: Alternative session location
+    - callback_context.invocation_context: The original API input
+    """
+    user_id = None
+
+    # Log what we have to work with
+    logger.info(f"Callback context type: {type(callback_context)}")
+    logger.info(f"Callback context attrs: {dir(callback_context)}")
+
+    # Check state first (if using session state)
+    if hasattr(callback_context, "state") and callback_context.state:
+        logger.info(f"callback_context.state: {callback_context.state}")
+        user_id = callback_context.state.get("user_id")
+
+    # Check session.state
+    if not user_id and hasattr(callback_context, "session"):
+        session = callback_context.session
+        if session and hasattr(session, "state") and session.state:
+            logger.info(f"callback_context.session.state: {session.state}")
+            user_id = session.state.get("user_id")
+
+    # Check invocation_context (where API input parameters often are)
+    if not user_id and hasattr(callback_context, "invocation_context"):
+        inv_ctx = callback_context.invocation_context
+        logger.info(f"invocation_context type: {type(inv_ctx)}")
+        if hasattr(inv_ctx, "user_id"):
+            user_id = inv_ctx.user_id
+        elif isinstance(inv_ctx, dict):
+            user_id = inv_ctx.get("user_id")
+
+    # Check user_content for input parameters
+    if not user_id and hasattr(callback_context, "user_content"):
+        logger.info(f"user_content: {callback_context.user_content}")
+
+    if user_id:
+        set_user_id(user_id)
+        logger.info(f"Context set: user_id={user_id}")
+    else:
+        logger.warning("No user_id found in callback context - events will be skipped")
+
+
+# Define the root agent - the main entry point for ADK
 root_agent = LlmAgent(
     name="falls_cms_assistant",
     model=Config.DEFAULT_MODEL,
     description="Content assistant for Falls Into Love CMS - creates and manages waterfall pages.",
-    instruction=COORDINATOR_INSTRUCTION,
-    tools=[
-        # Pipeline steps exposed individually for streaming visibility
-        AgentTool(agent=check_existing_agent),
-        AgentTool(agent=research_agent),
-        AgentTool(agent=content_agent),
-        AgentTool(agent=create_in_cms_agent),
-        # General CMS operations
-        AgentTool(agent=cms_agent),
-    ],
+    instruction=load_prompt("root"),
+    tools=ALL_PIPELINE_TOOLS,
+    before_agent_callback=capture_user_context,
 )

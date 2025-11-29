@@ -270,41 +270,48 @@ MCP tools come from the MCP server, not this project. To add new tools:
 ## Deployment to Agent Engine
 
 ### Deploy Workflow
+
+**Use the deploy script** - it handles everything automatically:
+
 ```bash
 cd /home/fil/falls_into_love_agent
-source .venv/bin/activate
-
-# 1. Copy .env into the package directory (REQUIRED - ADK bundles from package dir)
-cp .env falls_cms_agent/.env
-
-# 2. Deploy (--agent_engine_id flag is broken, each deploy creates new agent)
-adk deploy agent_engine \
-  --project=fil-mcp \
-  --region=us-west1 \
-  --staging_bucket=gs://run-sources-fil-mcp-us-west1 \
-  --display_name="Falls CMS Agent" \
-  --trace_to_cloud \
-  falls_cms_agent
-
-# After deploy, update AGENT_ENGINE_ID in Rails config/deploy.yml with new ID
-
-# 3. Test the deployed agent
-python test_deployed_agent.py "List all pages"
+./deploy.sh
 ```
 
+The script:
+1. Generates production `.env` in `falls_cms_agent/` (with correct Vertex AI settings)
+2. Runs `adk deploy`
+3. Extracts and displays the new agent ID
+4. Updates this CLAUDE.md with the new ID
+
+After the script completes, deploy Rails:
+```bash
+cd /home/fil/falls_into_love
+kamal deploy
+```
+
+**Note**: Rails fetches the agent ID automatically from GCP at deploy time (via `.kamal/secrets`). No manual ID updates needed.
+
+### Environment Configuration
+
+**IMPORTANT**: Local and production use different configurations:
+
+| Setting | Local (`.env` at root) | Production (`falls_cms_agent/.env`) |
+|---------|------------------------|-------------------------------------|
+| `GOOGLE_GENAI_USE_VERTEXAI` | `FALSE` | `TRUE` |
+| `GOOGLE_API_KEY` | Your API key | **NOT SET** (uses ADC) |
+| `MCP_SERVER_URL` | `http://localhost:8000/sse` | Cloud Run URL |
+| Telemetry | `false` | `true` |
+
+The deploy script generates the production `.env` automatically. Never manually copy the local `.env` to the package directory.
+
 ### Current Deployment
-- **Resource ID**: `8933048190563778560`
-- **Full Resource Name**: `projects/256129779474/locations/us-west1/reasoningEngines/8933048190563778560`
+- **Resource ID**: `2829544795569913856`
+- **Full Resource Name**: `projects/256129779474/locations/us-west1/reasoningEngines/3324940754580668416`
 - **Region**: us-west1
 - **Project**: fil-mcp
 
-**Note**: ADK `--agent_engine_id` flag is broken (404 on agentEngines endpoint), so each deploy creates a new agent. Update `AGENT_ENGINE_ID` in the Rails `config/deploy.yml` after each deployment.
-
-### Key Points
-- `.env` must be copied into `falls_cms_agent/` before deployment (ADK bundles from package dir)
-- `config.py` searches multiple locations for `.env` for compatibility
-- Both `.env` files are gitignored for security
-- OpenTelemetry enabled via `GOOGLE_CLOUD_AGENT_ENGINE_ENABLE_TELEMETRY=true`
+**Note**: ADK `--agent_engine_id` flag is broken (404 on agentEngines endpoint), so each deploy creates a new agent. The deploy script handles updating the ID automatically.
 
 ### Testing Deployed Agent
 ```bash
@@ -320,6 +327,84 @@ python test_deployed_agent.py "Create a page for Snoqualmie Falls"
 ```bash
 # Via REST API (force=true to delete sessions)
 curl -X DELETE \
-  "https://us-west1-aiplatform.googleapis.com/v1beta1/projects/256129779474/locations/us-west1/reasoningEngines/{ID}?force=true" \
+  "https://us-west1-aiplatform.googleapis.com/v1beta1/projects/256129779474/locations/us-west1/reasoningEngines/3324940754580668416{ID}?force=true" \
   -H "Authorization: Bearer $(gcloud auth print-access-token)"
 ```
+
+## Nice to Haves (Future Improvements)
+
+This section documents potential improvements identified during architectural review.
+These are not needed for current functionality but may become relevant as the project evolves.
+
+### Code Cleanup (Low Priority)
+
+**~~Unused Sub-Agent Definitions~~** ✓ Removed in `ee6d0e3`
+
+**~~Prompt Duplication~~** ✓ Fixed in `1501594`
+- Removed `voice.yaml` (duplicated content.yaml)
+- Removed `cms.yaml` (unused)
+- Moved ROOT_INSTRUCTION to `root.yaml`
+- All prompts now use consistent YAML format
+
+### If Adding Multi-Turn Conversations
+
+**ADK Context Caching**
+`ContextCacheConfig` can reduce Gemini input token costs by up to 75% for cached content.
+Not beneficial for single-turn requests but valuable for multi-turn sessions.
+```python
+from google.adk.context import ContextCacheConfig
+app = App(context_cache_config=ContextCacheConfig(min_tokens=500, ttl_seconds=3600))
+```
+
+**ADK Context Compaction**
+Sliding window summarization of older events to reduce context size in long sessions.
+See: https://google.github.io/adk-docs/context/compaction/
+
+### If ADK Vertex AI Emit Limitations Are Resolved
+
+Currently, sub-agents can't emit events back to the UI when running on Vertex AI Agent Engine.
+If this is fixed, consider migrating to:
+
+**SequentialAgent with output_key**
+```python
+create_pipeline = SequentialAgent(
+    name="create_waterfall_pipeline",
+    sub_agents=[
+        duplicate_checker,   # output_key="duplicate_check"
+        research_agent,      # output_key="research_result"
+        content_agent,       # output_key="content_draft"
+        cms_agent,           # output_key="cms_result"
+    ]
+)
+```
+Benefits: Automatic state passing, built-in event tracing, easier testing.
+
+**ADK SessionState instead of ContextVar**
+Replace manual `ContextVar` usage with ADK's built-in `context.state`.
+
+### If Adding Multiple Users/Interfaces
+
+**Input Validation**
+Add Pydantic validation for user inputs:
+```python
+class CreatePageRequest(BaseModel):
+    waterfall_name: str = Field(..., min_length=2, max_length=100, pattern=r'^[\w\s\-\'\.]+$')
+```
+
+**Typed Error Handling**
+Replace string-based errors with typed results for programmatic error handling:
+```python
+class PipelineErrorType(Enum):
+    DUPLICATE_FOUND = "duplicate_found"
+    RESEARCH_FAILED = "research_failed"
+```
+
+### Debugging Improvements (Low Priority)
+
+**MCP Error Path Logging**
+Add explicit handling when MCP returns `isError=True`:
+```python
+if result.isError:
+    logger.warning(f"MCP tool {tool_name} failed: {result}")
+```
+Currently errors are silently swallowed and content parsing is attempted anyway.
