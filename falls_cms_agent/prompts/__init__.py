@@ -1,19 +1,18 @@
 """Prompt definitions for agents.
 
-Prompts are now stored in YAML files in this directory.
+Prompts are stored in YAML files in this directory.
 Use the prompt loader from core.prompts to load them:
 
-    from falls_cms_agent.core import load_prompt
+    from falls_cms_agent.core.prompts import load_prompt
 
-    instruction = load_prompt("router")
+    instruction = load_prompt("root")
     agent = LlmAgent(instruction=instruction, ...)
 
 Available prompts:
-- router.yaml: Intent classification
-- research.yaml: Waterfall research
-- content.yaml: Content generation with voice
-- cms.yaml: CMS operations
-- voice.yaml: Brand voice definition (imported by content)
+- root.yaml: Root agent orchestration (main entry point)
+- content.yaml: Content generation with GenX voice
+- research.yaml: Waterfall research and validation
+- router.yaml: Intent classification (reference, not actively used)
 """
 
 # Re-export the loader for convenience

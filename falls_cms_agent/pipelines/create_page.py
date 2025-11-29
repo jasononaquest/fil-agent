@@ -67,16 +67,12 @@ async def call_content_llm(prompt: str) -> str | None:
     Uses structured output to enforce JSON response format.
     """
     content_instruction = load_prompt("content")
-    voice_instruction = load_prompt("voice")
-
-    # Combine content and voice instructions
-    full_instruction = f"{content_instruction}\n\n{voice_instruction}"
 
     # Generate JSON schema from Pydantic model
     content_schema = WaterfallPageDraft.model_json_schema()
 
     config = types.GenerateContentConfig(
-        system_instruction=full_instruction,
+        system_instruction=content_instruction,
         response_mime_type="application/json",
         response_schema=content_schema,
     )
