@@ -307,7 +307,7 @@ The deploy script generates the production `.env` automatically. Never manually 
 
 ### Current Deployment
 - **Resource ID**: `2829544795569913856`
-- **Full Resource Name**: `projects/256129779474/locations/us-west1/reasoningEngines/7041536347068170240`
+- **Full Resource Name**: `projects/256129779474/locations/us-west1/reasoningEngines/7139489638963478528`
 - **Region**: us-west1
 - **Project**: fil-mcp
 
@@ -327,7 +327,7 @@ python test_deployed_agent.py "Create a page for Snoqualmie Falls"
 ```bash
 # Via REST API (force=true to delete sessions)
 curl -X DELETE \
-  "https://us-west1-aiplatform.googleapis.com/v1beta1/projects/256129779474/locations/us-west1/reasoningEngines/7041536347068170240{ID}?force=true" \
+  "https://us-west1-aiplatform.googleapis.com/v1beta1/projects/256129779474/locations/us-west1/reasoningEngines/7139489638963478528{ID}?force=true" \
   -H "Authorization: Bearer $(gcloud auth print-access-token)"
 ```
 
