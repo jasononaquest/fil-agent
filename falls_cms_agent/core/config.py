@@ -46,7 +46,7 @@ class Config:
     # Flash: Fast, cheap - for classification and simple operations
     # Pro: Better writing quality - for content generation
     ROUTER_MODEL: str = os.getenv("ROUTER_MODEL", "gemini-2.0-flash")
-    CONTENT_MODEL: str = os.getenv("CONTENT_MODEL", "gemini-2.5-pro-preview-06-05")
+    CONTENT_MODEL: str = os.getenv("CONTENT_MODEL", "gemini-2.5-pro")
     DEFAULT_MODEL: str = os.getenv("DEFAULT_MODEL", "gemini-2.0-flash")
 
     @classmethod
