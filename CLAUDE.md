@@ -330,3 +330,80 @@ curl -X DELETE \
   "https://us-west1-aiplatform.googleapis.com/v1beta1/projects/256129779474/locations/us-west1/reasoningEngines/8969076987582742528{ID}?force=true" \
   -H "Authorization: Bearer $(gcloud auth print-access-token)"
 ```
+
+## Nice to Haves (Future Improvements)
+
+This section documents potential improvements identified during architectural review.
+These are not needed for current functionality but may become relevant as the project evolves.
+
+### Code Cleanup (Low Priority)
+
+**~~Unused Sub-Agent Definitions~~** ✓ Removed in `ee6d0e3`
+
+**Prompt Duplication**
+Voice instructions appear in both `content.yaml` (lines 4-19) and `voice.yaml` (lines 41-56).
+In `create_page.py`, both are loaded and concatenated, sending voice guidelines twice per request (~100 extra tokens).
+Fix: Remove the `instruction` field from `voice.yaml` since `content.yaml` already contains it.
+
+### If Adding Multi-Turn Conversations
+
+**ADK Context Caching**
+`ContextCacheConfig` can reduce Gemini input token costs by up to 75% for cached content.
+Not beneficial for single-turn requests but valuable for multi-turn sessions.
+```python
+from google.adk.context import ContextCacheConfig
+app = App(context_cache_config=ContextCacheConfig(min_tokens=500, ttl_seconds=3600))
+```
+
+**ADK Context Compaction**
+Sliding window summarization of older events to reduce context size in long sessions.
+See: https://google.github.io/adk-docs/context/compaction/
+
+### If ADK Vertex AI Emit Limitations Are Resolved
+
+Currently, sub-agents can't emit events back to the UI when running on Vertex AI Agent Engine.
+If this is fixed, consider migrating to:
+
+**SequentialAgent with output_key**
+```python
+create_pipeline = SequentialAgent(
+    name="create_waterfall_pipeline",
+    sub_agents=[
+        duplicate_checker,   # output_key="duplicate_check"
+        research_agent,      # output_key="research_result"
+        content_agent,       # output_key="content_draft"
+        cms_agent,           # output_key="cms_result"
+    ]
+)
+```
+Benefits: Automatic state passing, built-in event tracing, easier testing.
+
+**ADK SessionState instead of ContextVar**
+Replace manual `ContextVar` usage with ADK's built-in `context.state`.
+
+### If Adding Multiple Users/Interfaces
+
+**Input Validation**
+Add Pydantic validation for user inputs:
+```python
+class CreatePageRequest(BaseModel):
+    waterfall_name: str = Field(..., min_length=2, max_length=100, pattern=r'^[\w\s\-\'\.]+$')
+```
+
+**Typed Error Handling**
+Replace string-based errors with typed results for programmatic error handling:
+```python
+class PipelineErrorType(Enum):
+    DUPLICATE_FOUND = "duplicate_found"
+    RESEARCH_FAILED = "research_failed"
+```
+
+### Debugging Improvements (Low Priority)
+
+**MCP Error Path Logging**
+Add explicit handling when MCP returns `isError=True`:
+```python
+if result.isError:
+    logger.warning(f"MCP tool {tool_name} failed: {result}")
+```
+Currently errors are silently swallowed and content parsing is attempted anyway.

@@ -17,34 +17,6 @@ class TestAgentImports:
         assert root_agent is not None
         assert root_agent.name == "falls_cms_assistant"
 
-    def test_import_cms_agent(self):
-        """CMS agent should be importable."""
-        from falls_cms_agent.agents.cms import cms_agent
-
-        assert cms_agent is not None
-        assert cms_agent.name == "cms_agent"
-
-    def test_import_research_agent(self):
-        """Research agent should be importable."""
-        from falls_cms_agent.agents.research import research_agent
-
-        assert research_agent is not None
-        assert research_agent.name == "research_agent"
-
-    def test_import_content_agent(self):
-        """Content agent should be importable."""
-        from falls_cms_agent.agents.content import content_agent
-
-        assert content_agent is not None
-        assert content_agent.name == "content_agent"
-
-    def test_import_router_agent(self):
-        """Router agent should be importable."""
-        from falls_cms_agent.agents.router import router_agent
-
-        assert router_agent is not None
-        assert router_agent.name == "intent_router"
-
     def test_import_pipeline_tool(self):
         """Create waterfall pipeline tool should be importable."""
         from falls_cms_agent.pipelines.create_page import create_pipeline_tool
@@ -74,30 +46,6 @@ class TestAgentConfiguration:
             "get_page_details",
         ]
         assert set(tool_names) == set(expected)
-
-    def test_cms_agent_has_mcp_tools(self):
-        """CMS agent should have MCP toolset."""
-        from falls_cms_agent.agents.cms import cms_agent
-
-        assert len(cms_agent.tools) > 0
-
-    def test_research_agent_has_google_search(self):
-        """Research agent should have google_search tool."""
-        from falls_cms_agent.agents.research import research_agent
-
-        assert len(research_agent.tools) > 0
-
-    def test_content_agent_has_no_tools(self):
-        """Content agent should have no tools (pure LLM)."""
-        from falls_cms_agent.agents.content import content_agent
-
-        assert len(content_agent.tools) == 0
-
-    def test_router_agent_has_output_schema(self):
-        """Router agent should have UserIntent output schema."""
-        from falls_cms_agent.agents.router import router_agent
-
-        assert router_agent.output_schema is not None
 
 
 class TestPrompts:
