@@ -65,6 +65,10 @@ async def call_content_llm(prompt: str) -> str | None:
 
     Uses google.genai directly to avoid ADK Runner app_name mismatch issues.
     Uses structured output to enforce JSON response format.
+
+    Note: Uses CONTENT_MODEL (Gemini Pro) for better writing quality.
+    This is part of the multi-model orchestration pattern where Flash
+    handles routing and Pro handles content generation.
     """
     content_instruction = load_prompt("content")
 
@@ -78,7 +82,7 @@ async def call_content_llm(prompt: str) -> str | None:
     )
 
     response = await _client.aio.models.generate_content(
-        model=Config.DEFAULT_MODEL,
+        model=Config.CONTENT_MODEL,  # Uses Pro for better writing quality
         contents=prompt,
         config=config,
     )

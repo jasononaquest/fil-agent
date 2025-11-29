@@ -29,12 +29,13 @@ class TestAgentConfiguration:
     """Test agent configuration values."""
 
     def test_root_agent_has_tools(self):
-        """Root agent should have 9 pipeline tools configured (no delete)."""
+        """Root agent should have 10 pipeline tools including router (no delete)."""
         from falls_cms_agent.agent import root_agent
 
-        assert len(root_agent.tools) == 9
+        assert len(root_agent.tools) == 10
         tool_names = [t.func.__name__ for t in root_agent.tools]
         expected = [
+            "classify_intent",  # Router - always called first
             "create_waterfall_page",
             "create_category_page",
             "move_page",
