@@ -340,10 +340,11 @@ These are not needed for current functionality but may become relevant as the pr
 
 **~~Unused Sub-Agent Definitions~~** ✓ Removed in `ee6d0e3`
 
-**Prompt Duplication**
-Voice instructions appear in both `content.yaml` (lines 4-19) and `voice.yaml` (lines 41-56).
-In `create_page.py`, both are loaded and concatenated, sending voice guidelines twice per request (~100 extra tokens).
-Fix: Remove the `instruction` field from `voice.yaml` since `content.yaml` already contains it.
+**~~Prompt Duplication~~** ✓ Fixed in `1501594`
+- Removed `voice.yaml` (duplicated content.yaml)
+- Removed `cms.yaml` (unused)
+- Moved ROOT_INSTRUCTION to `root.yaml`
+- All prompts now use consistent YAML format
 
 ### If Adding Multi-Turn Conversations
 

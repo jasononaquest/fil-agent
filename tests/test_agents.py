@@ -86,14 +86,15 @@ class TestPrompts:
 
         assert "CREATE_PAGE" in instruction or "intent" in instruction.lower()
 
-    def test_voice_prompt_exists(self):
-        """Voice prompt YAML should exist."""
+    def test_root_prompt_has_tools(self):
+        """Root prompt should define available tools."""
         from falls_cms_agent.core.prompts import load_prompt
 
-        instruction = load_prompt("voice")
+        instruction = load_prompt("root")
 
-        assert len(instruction) > 0
-        assert "GenX" in instruction or "woman" in instruction.lower()
+        assert "create_waterfall_page" in instruction
+        assert "move_page" in instruction
+        assert "search_pages" in instruction
 
 
 class TestSchemas:
