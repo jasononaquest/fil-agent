@@ -52,16 +52,38 @@ async def classify_intent(
         Dict with classified intent fields. Use the 'action' field to determine
         which pipeline tool to call next.
     """
-    logger.info(f"[ROUTER] Classifying intent for: {user_request[:100]}...")
+    logger.info("=" * 60)
+    logger.info("[ROUTER] classify_intent CALLED")
+    logger.info(f"[ROUTER] user_request: {user_request}")
+    logger.info(f"[ROUTER] tool_context type: {type(tool_context)}")
 
     # Set user context for event streaming
-    if tool_context and hasattr(tool_context, "user_id") and tool_context.user_id:
-        set_user_id(tool_context.user_id)
+    user_id = None
+    if tool_context:
+        if hasattr(tool_context, "user_id"):
+            user_id = tool_context.user_id
+            logger.info(f"[ROUTER] tool_context.user_id = {user_id}")
+        else:
+            logger.info(f"[ROUTER] tool_context attrs: {dir(tool_context)}")
 
+        if user_id:
+            set_user_id(user_id)
+            logger.info(f"[ROUTER] Set user_id={user_id} in ContextVar")
+        else:
+            logger.warning("[ROUTER] tool_context.user_id is None or missing")
+    else:
+        logger.warning("[ROUTER] tool_context is None")
+
+    # Load router prompt
+    logger.info("[ROUTER] Loading router prompt...")
     router_instruction = load_prompt("router")
+    logger.info(f"[ROUTER] Prompt loaded, length={len(router_instruction)} chars")
 
     # Generate JSON schema from Pydantic model for structured output
     intent_schema = UserIntent.model_json_schema()
+    logger.info(
+        f"[ROUTER] Generated schema with keys: {list(intent_schema.get('properties', {}).keys())}"
+    )
 
     config = types.GenerateContentConfig(
         system_instruction=router_instruction,
@@ -69,6 +91,7 @@ async def classify_intent(
         response_schema=intent_schema,
     )
 
+    logger.info(f"[ROUTER] Calling model: {Config.ROUTER_MODEL}")
     try:
         response = await _client.aio.models.generate_content(
             model=Config.ROUTER_MODEL,  # Uses Flash for fast classification
@@ -76,25 +99,48 @@ async def classify_intent(
             config=config,
         )
 
+        logger.info(f"[ROUTER] Response received, has text: {bool(response.text)}")
         if response.text:
+            logger.info(f"[ROUTER] Raw response: {response.text[:500]}")
+
             # Parse and validate against Pydantic model
             intent = UserIntent.model_validate_json(response.text)
-            logger.info(f"[ROUTER] Classified as: {intent.action.value} - {intent.reasoning}")
-            return intent.model_dump()
+            logger.info("[ROUTER] Parsed intent successfully")
+            logger.info(f"[ROUTER] action: {intent.action.value}")
+            logger.info(f"[ROUTER] reasoning: {intent.reasoning}")
+            logger.info(f"[ROUTER] target_page_name: {intent.target_page_name}")
+            logger.info(f"[ROUTER] destination_parent_name: {intent.destination_parent_name}")
+            logger.info(f"[ROUTER] search_query: {intent.search_query}")
+            logger.info(f"[ROUTER] content_description: {intent.content_description}")
+
+            result = intent.model_dump()
+            logger.info(f"[ROUTER] Returning result: {result}")
+            logger.info("=" * 60)
+            return result
         else:
-            logger.warning("[ROUTER] No response from classification LLM")
-            return UserIntent(
+            logger.warning("[ROUTER] No response text from classification LLM")
+            logger.warning(f"[ROUTER] Full response object: {response}")
+            fallback = UserIntent(
                 reasoning="Could not classify the request",
                 action="HELP",
             ).model_dump()
+            logger.info(f"[ROUTER] Returning fallback: {fallback}")
+            logger.info("=" * 60)
+            return fallback
 
     except Exception as e:
-        logger.error(f"[ROUTER] Classification failed: {e}")
+        logger.error(f"[ROUTER] Classification failed with exception: {type(e).__name__}: {e}")
+        import traceback
+
+        logger.error(f"[ROUTER] Traceback: {traceback.format_exc()}")
         # Fall back to HELP intent on error
-        return UserIntent(
+        fallback = UserIntent(
             reasoning=f"Classification error: {e}",
             action="HELP",
         ).model_dump()
+        logger.info(f"[ROUTER] Returning error fallback: {fallback}")
+        logger.info("=" * 60)
+        return fallback
 
 
 # Wrap as ADK FunctionTool
