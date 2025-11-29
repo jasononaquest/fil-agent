@@ -42,9 +42,11 @@ class Config:
     RAILS_EVENTS_URL: str | None = os.getenv("RAILS_EVENTS_URL")
     INTERNAL_API_TOKEN: str | None = os.getenv("INTERNAL_API_TOKEN")
 
-    # Model configuration
-    ROUTER_MODEL: str = os.getenv("ROUTER_MODEL", "gemini-2.0-flash")  # Fast for classification
-    CONTENT_MODEL: str = os.getenv("CONTENT_MODEL", "gemini-2.0-flash")  # For content generation
+    # Model configuration - multi-model orchestration for cost/quality optimization
+    # Flash: Fast, cheap - for classification and simple operations
+    # Pro: Better writing quality - for content generation
+    ROUTER_MODEL: str = os.getenv("ROUTER_MODEL", "gemini-2.0-flash")
+    CONTENT_MODEL: str = os.getenv("CONTENT_MODEL", "gemini-2.5-pro-preview-06-05")
     DEFAULT_MODEL: str = os.getenv("DEFAULT_MODEL", "gemini-2.0-flash")
 
     @classmethod
