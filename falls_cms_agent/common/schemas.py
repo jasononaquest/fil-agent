@@ -24,7 +24,6 @@ class IntentAction(str, Enum):
     MOVE_PAGE = "MOVE_PAGE"
     UPDATE_CONTENT = "UPDATE_CONTENT"
     UPDATE_METADATA = "UPDATE_METADATA"
-    DELETE_PAGE = "DELETE_PAGE"
     PUBLISH_PAGE = "PUBLISH_PAGE"
     UNPUBLISH_PAGE = "UNPUBLISH_PAGE"
     SEARCH_CMS = "SEARCH_CMS"
@@ -292,6 +291,62 @@ class PageSummary(BaseModel):
     difficulty: str | None = None
     distance: float | None = None
     block_count: int = 0
+
+    @classmethod
+    def from_api_dict(cls, data: dict) -> "PageSummary":
+        """Create from MCP/API response dict."""
+        return cls(
+            id=data["id"],
+            title=data["title"],
+            slug=data.get("slug", ""),
+            published=data.get("published", False),
+            parent_id=data.get("parent_id"),
+            difficulty=data.get("difficulty"),
+            distance=data.get("distance"),
+            block_count=data.get("block_count", 0),
+        )
+
+
+class PageListResult(BaseModel):
+    """Structured result from list/search pages operations.
+
+    Returns a list of pages with context about what filter was applied.
+    Use this for composable operations - the pages list can be used by
+    other tools or the LLM for follow-up actions.
+    """
+
+    pages: list[PageSummary] = Field(description="List of matching pages")
+    total_count: int = Field(description="Number of pages returned")
+    filter_applied: str = Field(
+        description="Description of filter (e.g., 'top-level only', 'all pages')"
+    )
+    formatted_list: str = Field(
+        default="",
+        description="Pre-formatted bullet list of pages. Present this to the user as-is.",
+    )
+
+    @classmethod
+    def create(
+        cls,
+        pages: list[PageSummary],
+        filter_applied: str,
+    ) -> "PageListResult":
+        """Create a PageListResult with auto-generated formatted_list."""
+        if not pages:
+            formatted = "No pages found."
+        else:
+            lines = [f"Found {len(pages)} page(s) ({filter_applied}):\n"]
+            for p in pages:
+                status = "published" if p.published else "draft"
+                lines.append(f"- {p.title} (ID: {p.id}, {status})")
+            formatted = "\n".join(lines)
+
+        return cls(
+            pages=pages,
+            total_count=len(pages),
+            filter_applied=filter_applied,
+            formatted_list=formatted,
+        )
 
 
 class PageDetail(BaseModel):

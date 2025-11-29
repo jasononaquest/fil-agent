@@ -11,7 +11,6 @@ instruction: |
   - MOVE_PAGE: User wants to move a page to a different parent/category
   - UPDATE_CONTENT: User wants to change the content/text of a page
   - UPDATE_METADATA: User wants to change page properties (difficulty, distance, etc.)
-  - DELETE_PAGE: User wants to remove a page
   - PUBLISH_PAGE: User wants to make a draft page live
   - UNPUBLISH_PAGE: User wants to make a published page draft
   - SEARCH_CMS: User wants to find specific pages
@@ -42,11 +41,7 @@ instruction: |
      - "Set the elevation...", "Fix the GPS coordinates..."
      - Target = page name
 
-  5. DELETE_PAGE triggers:
-     - "Delete [page]", "Remove [page]", "Get rid of..."
-     - Target = page to delete
-
-  6. PUBLISH_PAGE triggers:
+  5. PUBLISH_PAGE triggers:
      - "Publish [page]", "Make [page] live", "Go live with..."
      - Target = page to publish
 
@@ -72,6 +67,7 @@ instruction: |
   11. HELP triggers:
       - "Hi", "Hello", "Help", "What can you do?"
       - Small talk, greetings, capability questions
+      - DELETE requests: "Delete [page]", "Remove [page]" → Respond that deletion is not supported for safety reasons
 
   AMBIGUOUS CASES:
   - "Update Multnomah Falls" without specifics → Ask clarification (HELP)
@@ -100,12 +96,6 @@ few_shot_examples:
       reasoning: "User wants to see a list of pages, filtered by Oregon"
       action: "LIST_PAGES"
       search_query: "Oregon"
-
-  - input: "Delete the test page"
-    output:
-      reasoning: "User explicitly wants to remove a page"
-      action: "DELETE_PAGE"
-      target_page_name: "test page"
 
   - input: "Update the description for Wahkeena Falls to mention the trail closure"
     output:

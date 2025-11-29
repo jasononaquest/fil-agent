@@ -57,15 +57,15 @@ class TestAgentConfiguration:
     """Test agent configuration values."""
 
     def test_root_agent_has_tools(self):
-        """Root agent should have 9 pipeline tools configured."""
+        """Root agent should have 9 pipeline tools configured (no delete)."""
         from falls_cms_agent.agent import root_agent
 
         assert len(root_agent.tools) == 9
         tool_names = [t.func.__name__ for t in root_agent.tools]
         expected = [
             "create_waterfall_page",
+            "create_category_page",
             "move_page",
-            "delete_page",
             "publish_page",
             "unpublish_page",
             "update_page_content",
@@ -215,7 +215,10 @@ class TestPipelineTools:
     """Test pipeline function tools."""
 
     def test_create_pipeline_tool_signature(self):
-        """Create pipeline tool should have correct signature."""
+        """Create pipeline tool should have correct signature.
+
+        user_id is read from tool_context.state (injected by ADK).
+        """
         import inspect
 
         from falls_cms_agent.pipelines.create_page import create_waterfall_page
@@ -225,12 +228,11 @@ class TestPipelineTools:
 
         assert "waterfall_name" in params
         assert "parent_name" in params
-        assert "user_id" in params
+        assert "tool_context" in params  # ADK injects this with state
 
     def test_management_tools_exist(self):
-        """All management pipeline tools should exist."""
+        """All management pipeline tools should exist (no delete tool)."""
         from falls_cms_agent.pipelines import (
-            delete_pipeline_tool,
             get_page_pipeline_tool,
             list_pipeline_tool,
             move_pipeline_tool,
@@ -242,7 +244,6 @@ class TestPipelineTools:
 
         tools = [
             move_pipeline_tool,
-            delete_pipeline_tool,
             publish_pipeline_tool,
             unpublish_pipeline_tool,
             update_content_pipeline_tool,
@@ -251,7 +252,7 @@ class TestPipelineTools:
             get_page_pipeline_tool,
         ]
 
-        assert len(tools) == 8
+        assert len(tools) == 7
         for tool in tools:
             assert tool.func is not None
 
