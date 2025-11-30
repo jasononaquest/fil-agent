@@ -49,7 +49,7 @@ Agent: ✓ Published Cherry Creek Falls
 
 ## ADK Features Demonstrated
 
-This project demonstrates **7 key concepts** from the ADK course:
+This project demonstrates **7 key concepts**:
 
 | Feature | Implementation |
 |---------|----------------|
