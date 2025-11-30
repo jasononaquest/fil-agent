@@ -1,0 +1,61 @@
+{
+  "eval_set_id": "conversational",
+  "name": "Conversational Tests",
+  "description": "Test conversational scenarios (help, clarification requests)",
+  "eval_cases": [
+    {
+      "eval_id": "clarify_hiking_tips",
+      "conversation": [
+        {
+          "invocation_id": "conv-001",
+          "user_content": {
+            "parts": [{"text": "Add hiking tips to the Multnomah Falls page"}],
+            "role": "user"
+          },
+          "intermediate_data": {
+            "tool_uses": [
+              {"name": "classify_intent", "args": {"user_request": "Add hiking tips to the Multnomah Falls page"}}
+            ],
+            "intermediate_responses": []
+          },
+          "final_response": {
+            "parts": [{"text": "To add hiking tips to the Multnomah Falls page, I need the actual content to add. What hiking tips would you like to add?"}],
+            "role": "model"
+          }
+        }
+      ],
+      "session_input": {
+        "app_name": "falls_cms_agent",
+        "user_id": "test_user",
+        "state": {}
+      }
+    },
+    {
+      "eval_id": "help_request",
+      "conversation": [
+        {
+          "invocation_id": "conv-002",
+          "user_content": {
+            "parts": [{"text": "Hello, what can you do?"}],
+            "role": "user"
+          },
+          "intermediate_data": {
+            "tool_uses": [
+              {"name": "classify_intent", "args": {"user_request": "help"}}
+            ],
+            "intermediate_responses": []
+          },
+          "final_response": {
+            "parts": [{"text": "Hello! I can help you manage the Falls Into Love website."}],
+            "role": "model"
+          }
+        }
+      ],
+      "session_input": {
+        "app_name": "falls_cms_agent",
+        "user_id": "test_user",
+        "state": {}
+      }
+    }
+  ]
+}

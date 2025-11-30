@@ -1,26 +1,26 @@
 {
   "eval_set_id": "fake_waterfall_rejection",
-  "name": "Fake Waterfall Rejection Test",
+  "name": "Fake Waterfall Rejection Tests",
   "description": "Verify research agent rejects non-existent waterfalls",
   "eval_cases": [
     {
-      "eval_id": "reject_fictional_waterfall",
+      "eval_id": "reject_rainbow_unicorn",
       "conversation": [
         {
-          "invocation_id": "test-002",
+          "invocation_id": "fake-001",
           "user_content": {
-            "parts": [{"text": "Create a page for Madeup Falls"}],
+            "parts": [{"text": "Create a page for Rainbow Unicorn Falls"}],
             "role": "user"
           },
           "intermediate_data": {
             "tool_uses": [
-              {"name": "list_pages", "args": {"search": "Madeup"}},
-              {"name": "google_search", "args": {"query": "Madeup Falls waterfall"}}
+              {"name": "classify_intent", "args": {"user_request": "Create a page for Rainbow Unicorn Falls"}},
+              {"name": "create_waterfall_page", "args": {"waterfall_name": "Rainbow Unicorn Falls"}}
             ],
             "intermediate_responses": []
           },
           "final_response": {
-            "parts": [{"text": "RESEARCH_FAILED"}],
+            "parts": [{"text": "I couldn't find any reliable information about \"Rainbow Unicorn Falls,\" so I couldn't create the page."}],
             "role": "model"
           }
         }

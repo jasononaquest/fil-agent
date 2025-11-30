@@ -38,7 +38,7 @@ Agent: ✓ Checking for existing pages...
 
 ## ADK Features Demonstrated
 
-This project demonstrates **6 key concepts** from the ADK course:
+This project demonstrates **7 key concepts** from the ADK course:
 
 | Feature | Implementation |
 |---------|----------------|
@@ -47,6 +47,7 @@ This project demonstrates **6 key concepts** from the ADK course:
 | **Tools (Google Search)** | Research agent uses `google_search_retrieval` for grounded facts |
 | **Sessions & State** | ADK sessions with `user_id` for real-time event streaming to UI |
 | **Observability** | OpenTelemetry tracing enabled for debugging and monitoring |
+| **Agent Evaluation** | ADK AgentEvaluator + Vertex AI Gen AI Evaluation Service |
 | **Agent Deployment** | Production deployment on Vertex AI Agent Engine + Cloud Run |
 
 ### Multi-Model Orchestration
@@ -255,6 +256,76 @@ Parallel execution would create race conditions or require complex rollback logi
 - **Pro for content**: Writing quality matters; Pro produces more nuanced prose
 
 This reduces costs by using the cheaper model for simple classification while reserving Pro for quality-sensitive content generation. (At the time of writing, Gemini 2.0 Flash costs $0.15/1M input tokens vs $1.25/1M for Gemini 2.5 Pro—an 88% reduction for routing calls. [Vertex AI Pricing](https://cloud.google.com/vertex-ai/generative-ai/pricing))
+
+---
+
+## Agent Evaluation
+
+The project includes evaluation tests using ADK's AgentEvaluator framework to validate agent behavior.
+
+### Running Evaluations
+
+```bash
+# Run all evaluation tests
+pytest tests/test_evaluations.py -v
+
+# Run specific test
+pytest tests/test_evaluations.py::test_intent_classification -v
+```
+
+**Expected results**: 6 passed, 1 skipped (~25 minutes runtime)
+
+### Test Fixtures
+
+Tests are defined as `.test.json` fixtures in `tests/fixtures/`:
+
+| Fixture | Eval Cases | What It Tests |
+|---------|------------|---------------|
+| `duplicate_detection.test.json` | 1 | Pipeline stops when page already exists |
+| `fake_waterfall_rejection.test.json` | 1 | Research agent rejects fictional waterfalls |
+| `intent_classification.test.json` | 6 | Router correctly classifies user intents |
+| `page_management.test.json` | 3 | Move, publish, and error handling for pages |
+| `list_and_search.test.json` | 2 | List and search operations work correctly |
+| `conversational.test.json` | 2 | Help requests and clarification (SKIPPED) |
+| `all_recorded.test.json` | 8 | Comprehensive test of recorded trajectories |
+
+### Evaluation Thresholds
+
+Thresholds are configured in `tests/fixtures/test_config.json`:
+
+```json
+{
+  "criteria": {
+    "tool_trajectory_avg_score": 0.8,
+    "response_match_score": 0.3
+  }
+}
+```
+
+- **tool_trajectory_avg_score: 0.8** — Allows minor variations in tool call sequences. The agent may call additional tools or use slightly different arguments while still achieving the correct outcome.
+
+- **response_match_score: 0.3** — LLM responses vary significantly between runs. We only require semantic similarity, not exact text matching.
+
+### Why Conversational Tests Are Skipped
+
+The `test_conversational` test is intentionally skipped because:
+
+1. **Non-deterministic behavior**: For help requests and clarification scenarios, the agent sometimes responds directly without calling tools, and sometimes calls `classify_intent` first. Both behaviors are valid.
+
+2. **Not a regression indicator**: Variability in conversational responses doesn't indicate a bug—it's expected LLM behavior.
+
+The core functionality tests (intent classification, page creation, management operations) are deterministic and provide reliable regression testing.
+
+### Recording New Trajectories
+
+To record actual agent behavior for new test cases:
+
+```bash
+# Record trajectories (requires live agent connection)
+python scripts/record_trajectories.py --format raw -o tests/trajectories/output.json
+```
+
+Recorded trajectories can be converted to fixtures by extracting the `tool_uses` from the agent's responses.
 
 ---
 

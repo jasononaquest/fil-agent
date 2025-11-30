@@ -1,0 +1,63 @@
+{
+  "eval_set_id": "list_and_search",
+  "name": "List and Search Tests",
+  "description": "Test list and search operations",
+  "eval_cases": [
+    {
+      "eval_id": "list_oregon_pages",
+      "conversation": [
+        {
+          "invocation_id": "list-001",
+          "user_content": {
+            "parts": [{"text": "What pages are in the Oregon category?"}],
+            "role": "user"
+          },
+          "intermediate_data": {
+            "tool_uses": [
+              {"name": "classify_intent", "args": {"user_request": "What pages are in the Oregon category?"}},
+              {"name": "list_pages", "args": {"parent_name": "Oregon"}}
+            ],
+            "intermediate_responses": []
+          },
+          "final_response": {
+            "parts": [{"text": "There are no pages in the Oregon category."}],
+            "role": "model"
+          }
+        }
+      ],
+      "session_input": {
+        "app_name": "falls_cms_agent",
+        "user_id": "test_user",
+        "state": {}
+      }
+    },
+    {
+      "eval_id": "search_portland_waterfalls",
+      "conversation": [
+        {
+          "invocation_id": "search-001",
+          "user_content": {
+            "parts": [{"text": "Find pages about waterfalls near Portland"}],
+            "role": "user"
+          },
+          "intermediate_data": {
+            "tool_uses": [
+              {"name": "classify_intent", "args": {"user_request": "Find pages about waterfalls near Portland"}},
+              {"name": "search_pages", "args": {"query": "waterfalls near Portland"}}
+            ],
+            "intermediate_responses": []
+          },
+          "final_response": {
+            "parts": [{"text": "I couldn't find any pages about waterfalls near Portland."}],
+            "role": "model"
+          }
+        }
+      ],
+      "session_input": {
+        "app_name": "falls_cms_agent",
+        "user_id": "test_user",
+        "state": {}
+      }
+    }
+  ]
+}

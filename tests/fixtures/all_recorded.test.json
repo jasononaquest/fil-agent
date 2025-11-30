@@ -1,0 +1,199 @@
+{
+  "eval_set_id": "all_recorded",
+  "name": "All Recorded Trajectories",
+  "description": "Comprehensive test of all recorded agent trajectories",
+  "eval_cases": [
+    {
+      "eval_id": "create_duplicate",
+      "conversation": [
+        {
+          "invocation_id": "rec-001",
+          "user_content": {
+            "parts": [{"text": "Create a page for Multnomah Falls in Oregon"}],
+            "role": "user"
+          },
+          "intermediate_data": {
+            "tool_uses": [
+              {"name": "classify_intent", "args": {"user_request": "Create a page for Multnomah Falls in Oregon"}},
+              {"name": "create_waterfall_page", "args": {"waterfall_name": "Multnomah Falls", "parent_name": "Oregon"}}
+            ],
+            "intermediate_responses": []
+          },
+          "final_response": {
+            "parts": [{"text": "A page for Multnomah Falls already exists."}],
+            "role": "model"
+          }
+        }
+      ],
+      "session_input": {"app_name": "falls_cms_agent", "user_id": "test_user", "state": {}}
+    },
+    {
+      "eval_id": "list_oregon",
+      "conversation": [
+        {
+          "invocation_id": "rec-002",
+          "user_content": {
+            "parts": [{"text": "What pages are in the Oregon category?"}],
+            "role": "user"
+          },
+          "intermediate_data": {
+            "tool_uses": [
+              {"name": "classify_intent", "args": {"user_request": "What pages are in the Oregon category?"}},
+              {"name": "list_pages", "args": {"parent_name": "Oregon"}}
+            ],
+            "intermediate_responses": []
+          },
+          "final_response": {
+            "parts": [{"text": "There are no pages in the Oregon category."}],
+            "role": "model"
+          }
+        }
+      ],
+      "session_input": {"app_name": "falls_cms_agent", "user_id": "test_user", "state": {}}
+    },
+    {
+      "eval_id": "search_portland",
+      "conversation": [
+        {
+          "invocation_id": "rec-003",
+          "user_content": {
+            "parts": [{"text": "Find pages about waterfalls near Portland"}],
+            "role": "user"
+          },
+          "intermediate_data": {
+            "tool_uses": [
+              {"name": "classify_intent", "args": {"user_request": "Find pages about waterfalls near Portland"}},
+              {"name": "search_pages", "args": {"query": "waterfalls near Portland"}}
+            ],
+            "intermediate_responses": []
+          },
+          "final_response": {
+            "parts": [{"text": "I couldn't find any pages about waterfalls near Portland."}],
+            "role": "model"
+          }
+        }
+      ],
+      "session_input": {"app_name": "falls_cms_agent", "user_id": "test_user", "state": {}}
+    },
+    {
+      "eval_id": "move_multnomah",
+      "conversation": [
+        {
+          "invocation_id": "rec-004",
+          "user_content": {
+            "parts": [{"text": "Move Multnomah Falls to the Columbia River Gorge category"}],
+            "role": "user"
+          },
+          "intermediate_data": {
+            "tool_uses": [
+              {"name": "classify_intent", "args": {"user_request": "Move Multnomah Falls to the Columbia River Gorge category"}},
+              {"name": "move_page", "args": {"page_name": "Multnomah Falls", "new_parent_name": "Columbia River Gorge"}}
+            ],
+            "intermediate_responses": []
+          },
+          "final_response": {
+            "parts": [{"text": "OK, I've moved Multnomah Falls to the Columbia River Gorge category."}],
+            "role": "model"
+          }
+        }
+      ],
+      "session_input": {"app_name": "falls_cms_agent", "user_id": "test_user", "state": {}}
+    },
+    {
+      "eval_id": "publish_cherry_creek",
+      "conversation": [
+        {
+          "invocation_id": "rec-005",
+          "user_content": {
+            "parts": [{"text": "Publish the Cherry Creek Falls page"}],
+            "role": "user"
+          },
+          "intermediate_data": {
+            "tool_uses": [
+              {"name": "classify_intent", "args": {"user_request": "Publish the Cherry Creek Falls page"}},
+              {"name": "publish_page", "args": {"page_name": "Cherry Creek Falls"}}
+            ],
+            "intermediate_responses": []
+          },
+          "final_response": {
+            "parts": [{"text": "The Cherry Creek Falls page is already published."}],
+            "role": "model"
+          }
+        }
+      ],
+      "session_input": {"app_name": "falls_cms_agent", "user_id": "test_user", "state": {}}
+    },
+    {
+      "eval_id": "fake_waterfall",
+      "conversation": [
+        {
+          "invocation_id": "rec-007",
+          "user_content": {
+            "parts": [{"text": "Create a page for Rainbow Unicorn Falls"}],
+            "role": "user"
+          },
+          "intermediate_data": {
+            "tool_uses": [
+              {"name": "classify_intent", "args": {"user_request": "Create a page for Rainbow Unicorn Falls"}},
+              {"name": "create_waterfall_page", "args": {"waterfall_name": "Rainbow Unicorn Falls"}}
+            ],
+            "intermediate_responses": []
+          },
+          "final_response": {
+            "parts": [{"text": "I couldn't find any reliable information about \"Rainbow Unicorn Falls.\""}],
+            "role": "model"
+          }
+        }
+      ],
+      "session_input": {"app_name": "falls_cms_agent", "user_id": "test_user", "state": {}}
+    },
+    {
+      "eval_id": "publish_nonexistent",
+      "conversation": [
+        {
+          "invocation_id": "rec-008",
+          "user_content": {
+            "parts": [{"text": "Publish the Imaginary Falls page"}],
+            "role": "user"
+          },
+          "intermediate_data": {
+            "tool_uses": [
+              {"name": "classify_intent", "args": {"user_request": "Publish the Imaginary Falls page"}},
+              {"name": "publish_page", "args": {"page_name": "Imaginary Falls"}}
+            ],
+            "intermediate_responses": []
+          },
+          "final_response": {
+            "parts": [{"text": "I couldn't find a page named \"Imaginary Falls.\""}],
+            "role": "model"
+          }
+        }
+      ],
+      "session_input": {"app_name": "falls_cms_agent", "user_id": "test_user", "state": {}}
+    },
+    {
+      "eval_id": "create_la_paz_success",
+      "conversation": [
+        {
+          "invocation_id": "rec-010",
+          "user_content": {
+            "parts": [{"text": "Create a page for La Paz Waterfall Gardens in Costa Rica"}],
+            "role": "user"
+          },
+          "intermediate_data": {
+            "tool_uses": [
+              {"name": "classify_intent", "args": {"user_request": "Create a page for La Paz Waterfall Gardens in Costa Rica"}},
+              {"name": "create_waterfall_page", "args": {"waterfall_name": "La Paz Waterfall Gardens", "parent_name": "Costa Rica"}}
+            ],
+            "intermediate_responses": []
+          },
+          "final_response": {
+            "parts": [{"text": "OK, I've created a draft page for La Paz Waterfall Gardens under the Costa Rica category."}],
+            "role": "model"
+          }
+        }
+      ],
+      "session_input": {"app_name": "falls_cms_agent", "user_id": "test_user", "state": {}}
+    }
+  ]
+}

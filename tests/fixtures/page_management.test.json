@@ -1,0 +1,91 @@
+{
+  "eval_set_id": "page_management",
+  "name": "Page Management Tests",
+  "description": "Test page management operations (move, publish)",
+  "eval_cases": [
+    {
+      "eval_id": "move_multnomah",
+      "conversation": [
+        {
+          "invocation_id": "mgmt-001",
+          "user_content": {
+            "parts": [{"text": "Move Multnomah Falls to the Columbia River Gorge category"}],
+            "role": "user"
+          },
+          "intermediate_data": {
+            "tool_uses": [
+              {"name": "classify_intent", "args": {"user_request": "Move Multnomah Falls to the Columbia River Gorge category"}},
+              {"name": "move_page", "args": {"page_name": "Multnomah Falls", "new_parent_name": "Columbia River Gorge"}}
+            ],
+            "intermediate_responses": []
+          },
+          "final_response": {
+            "parts": [{"text": "OK, I've moved Multnomah Falls to the Columbia River Gorge category."}],
+            "role": "model"
+          }
+        }
+      ],
+      "session_input": {
+        "app_name": "falls_cms_agent",
+        "user_id": "test_user",
+        "state": {}
+      }
+    },
+    {
+      "eval_id": "publish_cherry_creek",
+      "conversation": [
+        {
+          "invocation_id": "mgmt-002",
+          "user_content": {
+            "parts": [{"text": "Publish the Cherry Creek Falls page"}],
+            "role": "user"
+          },
+          "intermediate_data": {
+            "tool_uses": [
+              {"name": "classify_intent", "args": {"user_request": "Publish the Cherry Creek Falls page"}},
+              {"name": "publish_page", "args": {"page_name": "Cherry Creek Falls"}}
+            ],
+            "intermediate_responses": []
+          },
+          "final_response": {
+            "parts": [{"text": "The Cherry Creek Falls page is already published."}],
+            "role": "model"
+          }
+        }
+      ],
+      "session_input": {
+        "app_name": "falls_cms_agent",
+        "user_id": "test_user",
+        "state": {}
+      }
+    },
+    {
+      "eval_id": "publish_nonexistent",
+      "conversation": [
+        {
+          "invocation_id": "mgmt-003",
+          "user_content": {
+            "parts": [{"text": "Publish the Imaginary Falls page"}],
+            "role": "user"
+          },
+          "intermediate_data": {
+            "tool_uses": [
+              {"name": "classify_intent", "args": {"user_request": "Publish the Imaginary Falls page"}},
+              {"name": "publish_page", "args": {"page_name": "Imaginary Falls"}}
+            ],
+            "intermediate_responses": []
+          },
+          "final_response": {
+            "parts": [{"text": "I couldn't find a page named \"Imaginary Falls.\""}],
+            "role": "model"
+          }
+        }
+      ],
+      "session_input": {
+        "app_name": "falls_cms_agent",
+        "user_id": "test_user",
+        "state": {}
+      }
+    }
+  ]
+}

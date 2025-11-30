@@ -1,0 +1,146 @@
+{
+  "eval_set_id": "intent_classification",
+  "name": "Intent Classification Tests",
+  "description": "Verify router correctly classifies user intents and dispatches to appropriate pipelines",
+  "eval_cases": [
+    {
+      "eval_id": "classify_create_page_duplicate",
+      "conversation": [
+        {
+          "invocation_id": "intent-001",
+          "user_content": {
+            "parts": [{"text": "Create a page for Multnomah Falls in Oregon"}],
+            "role": "user"
+          },
+          "intermediate_data": {
+            "tool_uses": [
+              {"name": "classify_intent", "args": {"user_request": "Create a page for Multnomah Falls in Oregon"}},
+              {"name": "create_waterfall_page", "args": {"waterfall_name": "Multnomah Falls", "parent_name": "Oregon"}}
+            ],
+            "intermediate_responses": []
+          },
+          "final_response": {
+            "parts": [{"text": "A page for Multnomah Falls already exists."}],
+            "role": "model"
+          }
+        }
+      ],
+      "session_input": {
+        "app_name": "falls_cms_agent",
+        "user_id": "test_user",
+        "state": {}
+      }
+    },
+    {
+      "eval_id": "classify_list_pages",
+      "conversation": [
+        {
+          "invocation_id": "intent-002",
+          "user_content": {
+            "parts": [{"text": "What pages are in the Oregon category?"}],
+            "role": "user"
+          },
+          "intermediate_data": {
+            "tool_uses": [
+              {"name": "classify_intent", "args": {"user_request": "What pages are in the Oregon category?"}},
+              {"name": "list_pages", "args": {"parent_name": "Oregon"}}
+            ],
+            "intermediate_responses": []
+          },
+          "final_response": {
+            "parts": [{"text": "There are no pages in the Oregon category."}],
+            "role": "model"
+          }
+        }
+      ],
+      "session_input": {
+        "app_name": "falls_cms_agent",
+        "user_id": "test_user",
+        "state": {}
+      }
+    },
+    {
+      "eval_id": "classify_search",
+      "conversation": [
+        {
+          "invocation_id": "intent-003",
+          "user_content": {
+            "parts": [{"text": "Find pages about waterfalls near Portland"}],
+            "role": "user"
+          },
+          "intermediate_data": {
+            "tool_uses": [
+              {"name": "classify_intent", "args": {"user_request": "Find pages about waterfalls near Portland"}},
+              {"name": "search_pages", "args": {"query": "waterfalls near Portland"}}
+            ],
+            "intermediate_responses": []
+          },
+          "final_response": {
+            "parts": [{"text": "I couldn't find any pages about waterfalls near Portland. Would you like me to search for something else?"}],
+            "role": "model"
+          }
+        }
+      ],
+      "session_input": {
+        "app_name": "falls_cms_agent",
+        "user_id": "test_user",
+        "state": {}
+      }
+    },
+    {
+      "eval_id": "classify_publish_page",
+      "conversation": [
+        {
+          "invocation_id": "intent-004",
+          "user_content": {
+            "parts": [{"text": "Publish the Cherry Creek Falls page"}],
+            "role": "user"
+          },
+          "intermediate_data": {
+            "tool_uses": [
+              {"name": "classify_intent", "args": {"user_request": "Publish the Cherry Creek Falls page"}},
+              {"name": "publish_page", "args": {"page_name": "Cherry Creek Falls"}}
+            ],
+            "intermediate_responses": []
+          },
+          "final_response": {
+            "parts": [{"text": "The Cherry Creek Falls page is already published."}],
+            "role": "model"
+          }
+        }
+      ],
+      "session_input": {
+        "app_name": "falls_cms_agent",
+        "user_id": "test_user",
+        "state": {}
+      }
+    },
+    {
+      "eval_id": "classify_help",
+      "conversation": [
+        {
+          "invocation_id": "intent-005",
+          "user_content": {
+            "parts": [{"text": "Hello, what can you do?"}],
+            "role": "user"
+          },
+          "intermediate_data": {
+            "tool_uses": [
+              {"name": "classify_intent", "args": {"user_request": "help"}}
+            ],
+            "intermediate_responses": []
+          },
+          "final_response": {
+            "parts": [{"text": "Hello! I can help you manage the Falls Into Love website."}],
+            "role": "model"
+          }
+        }
+      ],
+      "session_input": {
+        "app_name": "falls_cms_agent",
+        "user_id": "test_user",
+        "state": {}
+      }
+    }
+  ]
+}
