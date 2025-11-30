@@ -29,6 +29,35 @@ def _init_user_context(tool_context: ToolContext | None) -> None:
         logger.debug(f"Set user_id={tool_context.user_id} from ToolContext")
 
 
+def _normalize_page_name(page_name: str) -> str:
+    """Normalize a page name by stripping common suffixes.
+
+    Users often say "the Multnomah Falls page" when they mean "Multnomah Falls".
+    This strips those suffixes for better matching.
+
+    Args:
+        page_name: Raw page name from user input
+
+    Returns:
+        Normalized page name with suffixes stripped
+    """
+    normalized = page_name.strip()
+
+    # Strip common suffixes (case-insensitive)
+    suffixes = [" page", " article", " post"]
+    lower = normalized.lower()
+    for suffix in suffixes:
+        if lower.endswith(suffix):
+            normalized = normalized[: -len(suffix)].strip()
+            break
+
+    # Also strip leading "the "
+    if normalized.lower().startswith("the "):
+        normalized = normalized[4:].strip()
+
+    return normalized
+
+
 async def _search_pages_by_name(page_name: str) -> tuple[list, str]:
     """Search for pages matching a name. Shared helper for find functions.
 
@@ -38,9 +67,13 @@ async def _search_pages_by_name(page_name: str) -> tuple[list, str]:
     Returns:
         Tuple of (list of matching pages, lowercased search term)
     """
+    # Normalize the name first (strip "page" suffix, etc.)
+    normalized = _normalize_page_name(page_name)
+    logger.debug(f"Normalized '{page_name}' to '{normalized}'")
+
     mcp = get_mcp_client()
-    pages = await mcp.call_tool("list_pages", {"search": page_name})
-    return (pages if isinstance(pages, list) else [], page_name.lower())
+    pages = await mcp.call_tool("list_pages", {"search": normalized})
+    return (pages if isinstance(pages, list) else [], normalized.lower())
 
 
 def _find_exact_match(pages: list, search_lower: str) -> dict | None:

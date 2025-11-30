@@ -59,11 +59,11 @@ instruction: |
 
   7. PUBLISH_PAGE triggers:
      - "Publish [page]", "Make [page] live", "Go live with..."
-     - Target = page to publish
+     - Target = page to publish (strip "page" suffix - "the Multnomah Falls page" → "Multnomah Falls")
 
   8. UNPUBLISH_PAGE triggers:
      - "Unpublish [page]", "Make [page] draft", "Take down..."
-     - Target = page to unpublish
+     - Target = page to unpublish (strip "page" suffix)
 
   9. SEARCH_CMS triggers:
      - "Find pages about...", "Search for...", "Are there any pages..."
@@ -84,6 +84,12 @@ instruction: |
       - "Hi", "Hello", "Help", "What can you do?"
       - Small talk, greetings, capability questions
       - DELETE requests: "Delete [page]", "Remove [page]" → Respond that deletion is not supported for safety reasons
+
+  PAGE NAME EXTRACTION:
+  - Always strip common suffixes: "page", "article", "post"
+  - "the Multnomah Falls page" → target_page_name: "Multnomah Falls"
+  - "lewis river falls page" → target_page_name: "Lewis River Falls"
+  - "the Cherry Creek page" → target_page_name: "Cherry Creek"
 
   AMBIGUOUS CASES:
   - "Update Multnomah Falls" without specifics → Ask clarification (HELP)
@@ -132,6 +138,12 @@ few_shot_examples:
       action: "UPDATE_CONTENT"
       target_page_name: "Wahkeena Falls"
       content_description: "mention the trail closure"
+
+  - input: "Publish the Lewis River Falls page"
+    output:
+      reasoning: "User wants to publish a page. Stripping 'page' suffix from the name."
+      action: "PUBLISH_PAGE"
+      target_page_name: "Lewis River Falls"
 
   - input: "Hi there!"
     output:
