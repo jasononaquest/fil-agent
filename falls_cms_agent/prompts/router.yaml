@@ -15,6 +15,8 @@ instruction: |
   - UPDATE_METADATA: User wants to change page properties (difficulty, distance, etc.)
   - PUBLISH_PAGE: User wants to make a draft page live
   - UNPUBLISH_PAGE: User wants to make a published page draft
+  - ADD_TO_NAV: User wants to add a page to a navigation location (header, footer)
+  - REMOVE_FROM_NAV: User wants to remove a page from a navigation location
   - SEARCH_CMS: User wants to find specific pages
   - LIST_PAGES: User wants to see what pages exist
   - GET_PAGE: User wants to see details of a specific page
@@ -65,22 +67,33 @@ instruction: |
      - "Unpublish [page]", "Make [page] draft", "Take down..."
      - Target = page to unpublish (strip "page" suffix)
 
-  9. SEARCH_CMS triggers:
-     - "Find pages about...", "Search for...", "Are there any pages..."
-     - "Which pages have...", "Look for..."
-     - search_query = what to search for
+  9. ADD_TO_NAV triggers:
+     - "Add [page] to Primary Nav", "Put [page] in the header"
+     - "Add [page] to Footer Nav", "Show [page] in footer navigation"
+     - Target = page name, nav_location_name = "Primary Nav" or "Footer Nav"
+     - Nav locations: "Primary Nav" (header), "Footer Nav" (footer)
 
-  10. LIST_PAGES triggers:
+  10. REMOVE_FROM_NAV triggers:
+      - "Remove [page] from Primary Nav", "Take [page] out of the header"
+      - "Remove [page] from Footer Nav", "Don't show [page] in footer"
+      - Target = page name, nav_location_name = nav location to remove from
+
+  11. SEARCH_CMS triggers:
+      - "Find pages about...", "Search for...", "Are there any pages..."
+      - "Which pages have...", "Look for..."
+      - search_query = what to search for
+
+  12. LIST_PAGES triggers:
       - "What pages do we have?", "Show me all...", "List the..."
       - "What's in [category]?", "Show everything under..."
       - search_query = optional filter
 
-  11. GET_PAGE triggers:
+  13. GET_PAGE triggers:
       - "Show me [page]", "Get details for...", "What's on the [page] page?"
       - "Open [page]", "Let me see..."
       - Target = page name
 
-  12. HELP triggers:
+  14. HELP triggers:
       - "Hi", "Hello", "Help", "What can you do?"
       - Small talk, greetings, capability questions
       - DELETE requests: "Delete [page]", "Remove [page]" → Respond that deletion is not supported for safety reasons
@@ -144,6 +157,27 @@ few_shot_examples:
       reasoning: "User wants to publish a page. Stripping 'page' suffix from the name."
       action: "PUBLISH_PAGE"
       target_page_name: "Lewis River Falls"
+
+  - input: "Add Waterfalls to the Primary Nav"
+    output:
+      reasoning: "User wants to add a page to the header navigation"
+      action: "ADD_TO_NAV"
+      target_page_name: "Waterfalls"
+      nav_location_name: "Primary Nav"
+
+  - input: "Put Oregon in the footer"
+    output:
+      reasoning: "User wants to add Oregon page to the footer navigation"
+      action: "ADD_TO_NAV"
+      target_page_name: "Oregon"
+      nav_location_name: "Footer Nav"
+
+  - input: "Remove Oregon from the Primary Nav"
+    output:
+      reasoning: "User wants to remove a page from the header navigation"
+      action: "REMOVE_FROM_NAV"
+      target_page_name: "Oregon"
+      nav_location_name: "Primary Nav"
 
   - input: "Hi there!"
     output:

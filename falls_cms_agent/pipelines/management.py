@@ -404,6 +404,180 @@ unpublish_pipeline_tool = FunctionTool(func=unpublish_page)
 
 
 # =============================================================================
+# Nav Location Management
+# =============================================================================
+
+
+async def _find_nav_location_by_name(nav_name: str) -> dict | None:
+    """Find a nav location by name (case-insensitive).
+
+    Args:
+        nav_name: Name of the nav location (e.g., "Primary Nav", "primary", "footer")
+
+    Returns:
+        Nav location dict with id and name, or None if not found
+    """
+    mcp = get_mcp_client()
+    try:
+        locations = await mcp.call_tool("list_nav_locations", {})
+        if not locations:
+            return None
+
+        # Normalize search term
+        search_lower = nav_name.lower().strip()
+
+        # Try exact match first
+        for loc in locations:
+            if loc.get("name", "").lower() == search_lower:
+                return loc
+
+        # Try partial match (e.g., "primary" -> "Primary Nav", "footer" -> "Footer Nav")
+        for loc in locations:
+            loc_name_lower = loc.get("name", "").lower()
+            if search_lower in loc_name_lower or loc_name_lower in search_lower:
+                return loc
+
+        return None
+
+    except Exception as e:
+        logger.warning(f"Error finding nav location '{nav_name}': {e}")
+        return None
+
+
+async def _get_available_nav_locations() -> list[str]:
+    """Get list of available nav location names for error messages."""
+    mcp = get_mcp_client()
+    try:
+        locations = await mcp.call_tool("list_nav_locations", {})
+        return [loc.get("name", "") for loc in (locations or [])]
+    except Exception:
+        return []
+
+
+async def add_to_nav_location(
+    page_name: str,
+    nav_location_name: str,
+    tool_context: ToolContext | None = None,
+) -> str:
+    """Add a page to a navigation location (e.g., Primary Nav, Footer Nav).
+
+    Args:
+        page_name: Name of the page to add
+        nav_location_name: Name of the nav location (e.g., "Primary Nav")
+        tool_context: Injected by ADK - contains user_id for event streaming
+
+    Returns:
+        Status message
+    """
+    _init_user_context(tool_context)
+    logger.info(f"Adding '{page_name}' to nav location '{nav_location_name}'")
+    mcp = get_mcp_client()
+
+    # Find the page
+    await emit_status(f"Finding '{page_name}'...", "step_start")
+    page = await find_page_by_name(page_name)
+    if not page:
+        return f"ERROR: Could not find page '{page_name}'"
+
+    page_id = page["id"]
+    page_title = page["title"]
+    await emit_status(f"Found '{page_title}' (ID: {page_id})", "step_complete")
+
+    # Find the nav location
+    await emit_status(f"Finding nav location '{nav_location_name}'...", "step_start")
+    nav_location = await _find_nav_location_by_name(nav_location_name)
+    if not nav_location:
+        available = await _get_available_nav_locations()
+        available_str = ", ".join(available) if available else "none found"
+        return f"ERROR: Could not find nav location '{nav_location_name}'. Available: {available_str}"
+
+    nav_id = nav_location["id"]
+    nav_name = nav_location["name"]
+    await emit_status(f"Found '{nav_name}' (ID: {nav_id})", "step_complete")
+
+    # Add to nav location
+    await emit_status(f"Adding to {nav_name}...", "step_start")
+    try:
+        result = await mcp.call_tool(
+            "add_page_to_nav_location",
+            {"page_id": page_id, "nav_location_id": nav_id},
+        )
+
+        message = result.get("message", f"Added to {nav_name}") if isinstance(result, dict) else f"Added to {nav_name}"
+        await emit_status(message, "pipeline_complete")
+        return f"SUCCESS: {message}"
+
+    except Exception as e:
+        msg = f"ERROR: Failed to add to nav location: {e}"
+        await emit_status(msg, "pipeline_error")
+        return msg
+
+
+async def remove_from_nav_location(
+    page_name: str,
+    nav_location_name: str,
+    tool_context: ToolContext | None = None,
+) -> str:
+    """Remove a page from a navigation location.
+
+    Args:
+        page_name: Name of the page to remove
+        nav_location_name: Name of the nav location (e.g., "Primary Nav")
+        tool_context: Injected by ADK - contains user_id for event streaming
+
+    Returns:
+        Status message
+    """
+    _init_user_context(tool_context)
+    logger.info(f"Removing '{page_name}' from nav location '{nav_location_name}'")
+    mcp = get_mcp_client()
+
+    # Find the page
+    await emit_status(f"Finding '{page_name}'...", "step_start")
+    page = await find_page_by_name(page_name)
+    if not page:
+        return f"ERROR: Could not find page '{page_name}'"
+
+    page_id = page["id"]
+    page_title = page["title"]
+    await emit_status(f"Found '{page_title}' (ID: {page_id})", "step_complete")
+
+    # Find the nav location
+    await emit_status(f"Finding nav location '{nav_location_name}'...", "step_start")
+    nav_location = await _find_nav_location_by_name(nav_location_name)
+    if not nav_location:
+        available = await _get_available_nav_locations()
+        available_str = ", ".join(available) if available else "none found"
+        return f"ERROR: Could not find nav location '{nav_location_name}'. Available: {available_str}"
+
+    nav_id = nav_location["id"]
+    nav_name = nav_location["name"]
+    await emit_status(f"Found '{nav_name}' (ID: {nav_id})", "step_complete")
+
+    # Remove from nav location
+    await emit_status(f"Removing from {nav_name}...", "step_start")
+    try:
+        result = await mcp.call_tool(
+            "remove_page_from_nav_location",
+            {"page_id": page_id, "nav_location_id": nav_id},
+        )
+
+        message = result.get("message", f"Removed from {nav_name}") if isinstance(result, dict) else f"Removed from {nav_name}"
+        await emit_status(message, "pipeline_complete")
+        return f"SUCCESS: {message}"
+
+    except Exception as e:
+        msg = f"ERROR: Failed to remove from nav location: {e}"
+        await emit_status(msg, "pipeline_error")
+        return msg
+
+
+add_to_nav_pipeline_tool = FunctionTool(func=add_to_nav_location)
+
+remove_from_nav_pipeline_tool = FunctionTool(func=remove_from_nav_location)
+
+
+# =============================================================================
 # Rename Page Pipeline
 # =============================================================================
 
@@ -725,6 +899,8 @@ __all__ = [
     "rename_pipeline_tool",
     "publish_pipeline_tool",
     "unpublish_pipeline_tool",
+    "add_to_nav_pipeline_tool",
+    "remove_from_nav_pipeline_tool",
     "update_content_pipeline_tool",
     "search_pipeline_tool",
     "list_pipeline_tool",

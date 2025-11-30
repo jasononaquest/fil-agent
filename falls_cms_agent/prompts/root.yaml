@@ -33,6 +33,8 @@ instruction: |
   - UPDATE_CONTENT → update_page_content(page_name=target_page_name, ...) with content_description guidance
   - PUBLISH_PAGE → publish_page(page_name=target_page_name)
   - UNPUBLISH_PAGE → unpublish_page(page_name=target_page_name)
+  - ADD_TO_NAV → add_to_nav_location(page_name=target_page_name, nav_location_name=nav_location_name)
+  - REMOVE_FROM_NAV → remove_from_nav_location(page_name=target_page_name, nav_location_name=nav_location_name)
   - SEARCH_CMS → search_pages(query=search_query or target_page_name)
   - LIST_PAGES → list_pages(parent_name=destination_parent_name)
   - GET_PAGE → get_page_details(page_name=target_page_name)
@@ -73,6 +75,15 @@ instruction: |
   - unpublish_page: Make a published page draft
     - Requires: page_name
     - Example: "Unpublish the Watson Falls page"
+
+  - add_to_nav_location: Add a page to a navigation location (header or footer nav)
+    - Requires: page_name, nav_location_name ("Primary Nav" or "Footer Nav")
+    - Available nav locations: "Primary Nav" (header), "Footer Nav" (footer)
+    - Example: "Add Waterfalls to the Primary Nav"
+
+  - remove_from_nav_location: Remove a page from a navigation location
+    - Requires: page_name, nav_location_name
+    - Example: "Remove Oregon from the Primary Nav"
 
   - update_page_content: REPLACE a content block on a page (overwrites existing content!)
     - Requires: page_name, block_name, block_content (HTML)

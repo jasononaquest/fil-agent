@@ -65,6 +65,8 @@ class IntentAction(str, Enum):
     UPDATE_METADATA = "UPDATE_METADATA"
     PUBLISH_PAGE = "PUBLISH_PAGE"
     UNPUBLISH_PAGE = "UNPUBLISH_PAGE"
+    ADD_TO_NAV = "ADD_TO_NAV"
+    REMOVE_FROM_NAV = "REMOVE_FROM_NAV"
     SEARCH_CMS = "SEARCH_CMS"
     LIST_PAGES = "LIST_PAGES"
     GET_PAGE = "GET_PAGE"
@@ -110,6 +112,9 @@ class UserIntent(BaseModel):
     )
     content_description: str | None = Field(
         default=None, description="What content to update for UPDATE_CONTENT"
+    )
+    nav_location_name: str | None = Field(
+        default=None, description="Nav location name for ADD_TO_NAV or REMOVE_FROM_NAV (e.g., 'Primary Nav')"
     )
 
 
@@ -447,3 +452,30 @@ class PageDetail(BaseModel):
     gps_latitude: float | None = None
     gps_longitude: float | None = None
     blocks: list[ContentBlock] = Field(default_factory=list)
+
+
+# =============================================================================
+# Navigation Location Models
+# =============================================================================
+
+
+class NavLocation(BaseModel):
+    """A navigation location where pages can be displayed.
+
+    Used for managing page placement in header nav, footer nav, etc.
+    """
+
+    id: int
+    name: str
+
+    @classmethod
+    def from_api_dict(cls, data: dict) -> "NavLocation":
+        """Create from MCP/API response dict."""
+        return cls(id=data["id"], name=data.get("name", ""))
+
+
+class NavLocationResult(BaseModel):
+    """Result of a nav location operation (add/remove)."""
+
+    message: str
+    nav_location: NavLocation
