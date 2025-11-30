@@ -32,7 +32,18 @@ Agent: ✓ Checking for existing pages...
        with 8 content blocks.
 ```
 
-**One sentence in, published draft out.**
+And it doesn't stop at creation. The agent manages your entire content lifecycle:
+
+```
+User: "Publish Cherry Creek Falls and add it to the primary nav"
+
+Agent: ✓ Published Cherry Creek Falls
+       ✓ Added to Primary Nav
+
+       Done! Cherry Creek Falls is now live and visible in your header navigation.
+```
+
+**One sentence in, published page out.**
 
 ---
 
@@ -42,8 +53,8 @@ This project demonstrates **7 key concepts** from the ADK course:
 
 | Feature | Implementation |
 |---------|----------------|
-| **Multi-Agent System** | Root agent orchestrates router + create pipeline + management tools |
-| **Tools (MCP)** | Full MCP integration with custom CMS server for CRUD operations |
+| **Multi-Agent System** | Root agent orchestrates router + create pipeline + 12 management tools |
+| **Tools (MCP)** | 15 MCP tools for full CMS lifecycle: create, publish, move, nav management |
 | **Tools (Google Search)** | Research agent uses `google_search_retrieval` for grounded facts |
 | **Sessions & State** | ADK sessions with `user_id` for real-time event streaming to UI |
 | **Observability** | OpenTelemetry tracing enabled for debugging and monitoring |
@@ -88,7 +99,10 @@ flowchart TB
             SEARCH[search_pages]
             MOVE[move_page]
             PUB[publish_page]
+            UNPUB[unpublish_page]
             UPDATE[update_content]
+            ADDNAV[add_to_nav]
+            REMNAV[remove_from_nav]
         end
     end
 
@@ -108,10 +122,10 @@ flowchart TB
     DUP --> RES
     RES --> CON
     CON --> CMS_CREATE
-    ROUTER -->|"intent: manage"| LIST & SEARCH & MOVE & PUB & UPDATE
+    ROUTER -->|"intent: manage"| LIST & SEARCH & MOVE & PUB & UNPUB & UPDATE & ADDNAV & REMNAV
 
     CMS_CREATE --> MCP
-    LIST & SEARCH & MOVE & PUB & UPDATE --> MCP
+    LIST & SEARCH & MOVE & PUB & UNPUB & UPDATE & ADDNAV & REMNAV --> MCP
     MCP <-->|HTTP| API
     ROOT -->|Status Events| EVENTS
     API --> DB
@@ -178,6 +192,41 @@ sequenceDiagram
 
 ---
 
+## Management Operations
+
+Beyond page creation, the agent handles the full content management lifecycle:
+
+| Operation | Example Prompt | What It Does |
+|-----------|----------------|--------------|
+| **Publish** | "Publish Cherry Creek Falls" | Makes a draft page live |
+| **Unpublish** | "Unpublish the Watson Falls page" | Reverts to draft status |
+| **Move** | "Move Toketee Falls under Highway 138" | Reorganizes page hierarchy |
+| **Rename** | "Rename 'Multnomah Falls Oregon' to 'Multnomah Falls'" | Updates page title |
+| **Update Content** | "Update the hiking tips on Multnomah Falls to mention the trail closure" | Modifies specific content blocks |
+| **Add to Nav** | "Add Waterfalls to the Primary Nav" | Places page in header navigation |
+| **Remove from Nav** | "Remove Oregon from the Footer Nav" | Removes page from navigation |
+| **Search** | "Find pages about Oregon" | Searches by title or content |
+| **List** | "What pages are under Washington?" | Lists pages with optional parent filter |
+| **Get Details** | "Show me the Cherry Creek Falls page" | Displays full page info including blocks |
+
+### Navigation Management
+
+The agent intelligently handles navigation placement:
+
+- **Case-insensitive matching**: "primary nav" → "Primary Nav"
+- **Partial matching**: "primary" → "Primary Nav", "footer" → "Footer Nav"
+- **Idempotent operations**: Adding to a nav when already present returns success (not error)
+- **Helpful errors**: Invalid nav names return available options
+
+```
+User: "Add Oregon to the sidebar"
+
+Agent: I couldn't find a navigation location called "sidebar".
+       Available locations: Primary Nav, Footer Nav
+```
+
+---
+
 ## Real-Time Status Updates
 
 Users see step-by-step progress as the agent works:
@@ -221,11 +270,13 @@ falls_cms_agent/
 │   └── prompts.py           # YAML prompt loader
 ├── pipelines/
 │   ├── create_page.py       # Page creation orchestration
-│   └── management.py        # CRUD tool implementations
+│   ├── management.py        # 12 management tools (publish, move, nav, etc.)
+│   └── router.py            # Intent classification (Gemini Flash)
 ├── common/
 │   └── schemas.py           # Pydantic models (shared with MCP)
 └── prompts/
     ├── root.yaml            # Root agent instructions
+    ├── router.yaml          # Intent classification rules
     ├── research.yaml        # Research agent instructions
     └── content.yaml         # Content generation + voice
 ```
@@ -288,6 +339,7 @@ Tests are defined as `.test.json` fixtures in `tests/fixtures/`:
 | `list_and_search.test.json` | 2 | List and search operations work correctly |
 | `conversational.test.json` | 2 | Help requests and clarification (SKIPPED) |
 | `all_recorded.test.json` | 8 | Comprehensive test of recorded trajectories |
+| `nav_location.test.json` | — | Add/remove nav location operations (PLANNED) |
 
 ### Evaluation Thresholds
 
