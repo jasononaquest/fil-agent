@@ -398,8 +398,7 @@ Key learnings:
 
 ## Related Projects
 
-- **[Falls Into Love](https://github.com/yourusername/falls_into_love)**: Rails CMS application
-- **[Falls MCP Server](https://github.com/yourusername/falls_into_love_mcp)**: MCP bridge to Rails API
+- **[Falls MCP Server](https://github.com/jasononaquest/falls_into_love_mcp)**: MCP bridge to Rails API
 
 ---
 
