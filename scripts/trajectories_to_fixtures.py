@@ -25,10 +25,12 @@ def trajectory_to_fixture_case(trajectory: dict) -> dict:
     # Convert tool calls to expected_tool_use format
     expected_tool_use = []
     for tc in trajectory.get("tool_calls", []):
-        expected_tool_use.append({
-            "tool_name": tc["name"],
-            "tool_input": tc["input"],
-        })
+        expected_tool_use.append(
+            {
+                "tool_name": tc["name"],
+                "tool_input": tc["input"],
+            }
+        )
 
     return {
         "query": trajectory["prompt"],

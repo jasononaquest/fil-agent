@@ -114,7 +114,8 @@ class UserIntent(BaseModel):
         default=None, description="What content to update for UPDATE_CONTENT"
     )
     nav_location_name: str | None = Field(
-        default=None, description="Nav location name for ADD_TO_NAV or REMOVE_FROM_NAV (e.g., 'Primary Nav')"
+        default=None,
+        description="Nav location name for ADD_TO_NAV or REMOVE_FROM_NAV (e.g., 'Primary Nav')",
     )
 
 
@@ -154,12 +155,14 @@ class WaterfallPageDraft(BaseModel):
     for the MCP create_waterfall_page tool.
     """
 
-    title: str = Field(description="Page title (e.g., 'Multnomah Falls')")
+    title: str = Field(
+        description="Exact waterfall name, no embellishment (e.g., 'Multnomah Falls')"
+    )
     slug: str | None = Field(
         default=None, description="URL slug (auto-generated from title if not provided)"
     )
-    meta_title: str = Field(description="SEO title (50-60 characters)")
-    meta_description: str = Field(description="SEO description (150-160 characters)")
+    meta_title: str = Field(max_length=60, description="SEO title, max 60 characters")
+    meta_description: str = Field(max_length=160, description="SEO description, max 160 characters")
     difficulty: Difficulty = Field(description="Trail difficulty rating")
     distance: float | None = Field(default=None, description="Trail distance in miles")
     elevation_gain: int | None = Field(default=None, description="Elevation gain in feet")

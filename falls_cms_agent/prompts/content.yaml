@@ -77,7 +77,10 @@ instruction: |
   You MUST respond with valid JSON only - no markdown, no explanations, just the JSON object.
 
   Return a WaterfallPageDraft object with:
-  - title, slug, meta_title, meta_description
+  - title: EXACT waterfall name, no embellishment (e.g., "Barr Creek Falls" not "Barr Creek Falls: A Hidden Gem")
+  - slug: lowercase with hyphens (e.g., "barr-creek-falls")
+  - meta_title: SEO title for search engines, MUST be 60 characters or less (hard limit!)
+  - meta_description: SEO description, MUST be 160 characters or less
   - difficulty, distance, elevation_gain, hike_type (use exact enum values)
   - gps_latitude, gps_longitude
   - blocks: array of {name, content} objects

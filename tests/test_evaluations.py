@@ -99,7 +99,9 @@ async def test_list_and_search():
     )
 
 
-@pytest.mark.skip(reason="Conversational tests are too non-deterministic - agent may respond directly or use tools")
+@pytest.mark.skip(
+    reason="Conversational tests are too non-deterministic - agent may respond directly or use tools"
+)
 @pytest.mark.skipif(not ADK_AVAILABLE, reason="google-adk not installed")
 @pytest.mark.asyncio
 async def test_conversational():

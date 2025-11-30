@@ -163,9 +163,7 @@ def create_agent_callable():
 # =============================================================================
 
 
-@pytest.mark.skipif(
-    not VERTEX_AVAILABLE, reason="google-cloud-aiplatform not installed"
-)
+@pytest.mark.skipif(not VERTEX_AVAILABLE, reason="google-cloud-aiplatform not installed")
 @pytest.mark.skipif(not AGENT_AVAILABLE, reason="falls_cms_agent not importable")
 @pytest.mark.skipif(not PROJECT_ID, reason="GOOGLE_CLOUD_PROJECT not set")
 @pytest.mark.asyncio
@@ -233,9 +231,7 @@ async def test_vertex_ai_evaluation():
     assert result is not None
 
 
-@pytest.mark.skipif(
-    not VERTEX_AVAILABLE, reason="google-cloud-aiplatform not installed"
-)
+@pytest.mark.skipif(not VERTEX_AVAILABLE, reason="google-cloud-aiplatform not installed")
 @pytest.mark.skipif(not PROJECT_ID, reason="GOOGLE_CLOUD_PROJECT not set")
 def test_vertex_ai_quick_eval():
     """Quick evaluation with a smaller dataset for development iteration.
@@ -290,8 +286,8 @@ def export_metrics_for_submission():
     summary = f"""
 ## Agent Evaluation Results
 
-**Evaluation Date**: {results.get('timestamp', 'N/A')}
-**Test Cases**: {results.get('num_cases', 0)}
+**Evaluation Date**: {results.get("timestamp", "N/A")}
+**Test Cases**: {results.get("num_cases", 0)}
 **Platform**: Vertex AI Gen AI Evaluation Service
 
 ### Metrics Summary

@@ -489,7 +489,9 @@ async def add_to_nav_location(
     if not nav_location:
         available = await _get_available_nav_locations()
         available_str = ", ".join(available) if available else "none found"
-        return f"ERROR: Could not find nav location '{nav_location_name}'. Available: {available_str}"
+        return (
+            f"ERROR: Could not find nav location '{nav_location_name}'. Available: {available_str}"
+        )
 
     nav_id = nav_location["id"]
     nav_name = nav_location["name"]
@@ -503,7 +505,11 @@ async def add_to_nav_location(
             {"page_id": page_id, "nav_location_id": nav_id},
         )
 
-        message = result.get("message", f"Added to {nav_name}") if isinstance(result, dict) else f"Added to {nav_name}"
+        message = (
+            result.get("message", f"Added to {nav_name}")
+            if isinstance(result, dict)
+            else f"Added to {nav_name}"
+        )
         await emit_status(message, "pipeline_complete")
         return f"SUCCESS: {message}"
 
@@ -548,7 +554,9 @@ async def remove_from_nav_location(
     if not nav_location:
         available = await _get_available_nav_locations()
         available_str = ", ".join(available) if available else "none found"
-        return f"ERROR: Could not find nav location '{nav_location_name}'. Available: {available_str}"
+        return (
+            f"ERROR: Could not find nav location '{nav_location_name}'. Available: {available_str}"
+        )
 
     nav_id = nav_location["id"]
     nav_name = nav_location["name"]
@@ -562,7 +570,11 @@ async def remove_from_nav_location(
             {"page_id": page_id, "nav_location_id": nav_id},
         )
 
-        message = result.get("message", f"Removed from {nav_name}") if isinstance(result, dict) else f"Removed from {nav_name}"
+        message = (
+            result.get("message", f"Removed from {nav_name}")
+            if isinstance(result, dict)
+            else f"Removed from {nav_name}"
+        )
         await emit_status(message, "pipeline_complete")
         return f"SUCCESS: {message}"
 

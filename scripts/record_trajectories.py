@@ -164,7 +164,7 @@ async def record_trajectory(prompt: str, verbose: bool = False) -> Trajectory:
     current_tool: ToolCall | None = None
 
     if verbose:
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print(f"PROMPT: {prompt}")
         print("=" * 60)
 
@@ -173,8 +173,6 @@ async def record_trajectory(prompt: str, verbose: bool = False) -> Trajectory:
         session_id=session_id,
         new_message=content,
     ):
-        event_type = type(event).__name__
-
         # Capture tool calls
         if hasattr(event, "content") and event.content:
             for part in event.content.parts if hasattr(event.content, "parts") else []:
@@ -209,7 +207,7 @@ async def record_trajectory(prompt: str, verbose: bool = False) -> Trajectory:
     trajectory.total_duration_ms = (datetime.now() - start_time).total_seconds() * 1000
 
     if verbose:
-        print(f"\n{'─'*60}")
+        print(f"\n{'─' * 60}")
         print(f"RESPONSE: {trajectory.final_response[:500]}...")
         print(f"DURATION: {trajectory.total_duration_ms:.0f}ms")
         print(f"TOOL CALLS: {len(trajectory.tool_calls)}")
@@ -300,12 +298,8 @@ async def main():
         default="analysis",
         help="Output format",
     )
-    parser.add_argument(
-        "--verbose", "-v", action="store_true", help="Show detailed tool calls"
-    )
-    parser.add_argument(
-        "--output", "-o", help="Output file (prints to stdout if not specified)"
-    )
+    parser.add_argument("--verbose", "-v", action="store_true", help="Show detailed tool calls")
+    parser.add_argument("--output", "-o", help="Output file (prints to stdout if not specified)")
     parser.add_argument(
         "--category",
         "-c",
@@ -331,7 +325,7 @@ async def main():
     results = []
     for prompt_info in prompts:
         prompt = prompt_info["prompt"]
-        print(f"\n[{len(results)+1}/{len(prompts)}] {prompt[:50]}...")
+        print(f"\n[{len(results) + 1}/{len(prompts)}] {prompt[:50]}...")
 
         try:
             trajectory = await record_trajectory(prompt, verbose=args.verbose)
