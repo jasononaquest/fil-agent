@@ -45,9 +45,9 @@ class Config:
     # Model configuration - multi-model orchestration for cost/quality optimization
     # Flash: Fast, cheap - for classification and simple operations
     # Pro: Better writing quality - for content generation
-    ROUTER_MODEL: str = os.getenv("ROUTER_MODEL", "gemini-2.0-flash")
+    ROUTER_MODEL: str = os.getenv("ROUTER_MODEL", "gemini-2.5-flash")
     CONTENT_MODEL: str = os.getenv("CONTENT_MODEL", "gemini-2.5-pro")
-    DEFAULT_MODEL: str = os.getenv("DEFAULT_MODEL", "gemini-2.0-flash")
+    DEFAULT_MODEL: str = os.getenv("DEFAULT_MODEL", "gemini-2.5-flash")
 
     @classmethod
     def get_mcp_headers(cls) -> dict[str, str]:
