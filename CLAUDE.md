@@ -335,6 +335,34 @@ python test_deployed_agent.py "Create a page for Snoqualmie Falls"
 This section documents potential improvements identified during architectural review.
 These are not needed for current functionality but may become relevant as the project evolves.
 
+### Performance Optimizations (Planned)
+
+**1. CMS Tree Cache** ✅ High Value
+- Cache all page metadata in-memory as a tree structure (id, title, slug, parent_id)
+- **Modify `find_page_by_name()` and `find_category_by_name()` to check cache first, MCP fallback**
+- **Update cache after write operations** (create, move, delete) to stay in sync
+- On MCP "not found" error → refresh cache and retry (handles admin interface edits)
+- Tree enables smart queries: "Does Oregon already have Multnomah Falls?"
+- Lazy initialization: first lookup calls `list_pages({})` once (~300ms), then all lookups are instant
+- Files: New `core/cms_cache.py`, modify `pipelines/management.py`, `pipelines/create_page.py`
+
+**2. Parallel MCP Calls** ✅ Quick Win
+- Use `asyncio.gather` for independent lookups (find page ∥ find parent)
+- Affects: `move_page`, `add_to_nav_location`, `remove_from_nav_location`
+- ~40% latency reduction for these operations
+- Tradeoff: Fewer granular status updates (approved: speed over granularity)
+- Files: Modify `pipelines/management.py` only
+
+**3. Research Result Caching** ⏸️ Deferred
+- Cache waterfall research in Rails DB to skip repeat Google searches
+- Extract "mentioned waterfalls" from search results for discovery
+- Low ROI: Pages aren't recreated, discovery needs name+source pairs
+- Revisit if doing bulk waterfall creation
+
+**Metrics**: Capture before/after latency measurements for write-up (use Cloud Logging timestamps like we did in the initial analysis).
+
+Full analysis: Session plan file or ask Claude to re-analyze.
+
 ### Code Cleanup (Low Priority)
 
 **~~Unused Sub-Agent Definitions~~** ✓ Removed in `ee6d0e3`
